@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isValidUser(user) {
+      return user.keys().hasAll(['email', 'displayName', 'createdAt']) &&
+             user.email is string &&
+             user.displayName is string &&
+             user.createdAt is timestamp;
+    }
+    
+    function isValidProfile(profile) {
+      return profile.keys().hasAll(['age', 'gender', 'bio']) &&
+             profile.age is int &&
+             profile.age >= 18 &&
+             profile.age <= 100 &&
+             profile.gender in ['male', 'female', 'non-binary', 'other'] &&
+             profile.bio is string &&
+             profile.bio.size() <= 500;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+      
+      // User profile subcollection
+      match /profile/{document=**} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
+      
+      // User matches subcollection
+      match /matches/{matchId} {
+        allow read: if isOwner(userId);
+        allow write: if false; // Only backend can write matches
+      }
+      
+      // User conversations subcollection
+      match /conversations/{conversationId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+      }
+    }
+    
+    // Matches collection (global)
+    match /matches/{matchId} {
+      allow read: if isAuthenticated() && 
+                     (request.auth.uid == resource.data.user1Id || 
+                      request.auth.uid == resource.data.user2Id);
+      allow write: if false; // Only backend functions can create matches
+    }
+    
+    // Video sessions collection
+    match /videoSessions/{sessionId} {
+      allow read: if isAuthenticated() && 
+                     (request.auth.uid == resource.data.initiatorId || 
+                      request.auth.uid == resource.data.recipientId);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+                       (request.auth.uid == resource.data.initiatorId || 
+                        request.auth.uid == resource.data.recipientId);
+      allow delete: if false; // Sessions should not be deleted
+    }
+    
+    // Trust scores collection
+    match /trustScores/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false; // Only backend can calculate trust scores
+    }
+    
+    // Reports collection
+    match /reports/{reportId} {
+      allow read: if false; // Only admins can read reports
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+    
+    // Default deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
