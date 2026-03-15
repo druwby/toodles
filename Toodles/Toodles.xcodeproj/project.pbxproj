@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		12CCCE072F57C339001FC149 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 12CCCE062F57C339001FC149 /* FirebaseAuth */; };
 		12CCCE092F57C339001FC149 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 12CCCE082F57C339001FC149 /* FirebaseFirestore */; };
-		12CCCE0B2F57C339001FC149 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 12CCCE0A2F57C339001FC149 /* FirebaseStorage */; };
+
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,7 +31,7 @@
 			files = (
 				12CCCE072F57C339001FC149 /* FirebaseAuth in Frameworks */,
 				12CCCE092F57C339001FC149 /* FirebaseFirestore in Frameworks */,
-				12CCCE0B2F57C339001FC149 /* FirebaseStorage in Frameworks */,
+
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,7 +76,7 @@
 			packageProductDependencies = (
 				12CCCE062F57C339001FC149 /* FirebaseAuth */,
 				12CCCE082F57C339001FC149 /* FirebaseFirestore */,
-				12CCCE0A2F57C339001FC149 /* FirebaseStorage */,
+
 			);
 			productName = Toodles;
 			productReference = 1280D9E62F57AB5B0037ABD4 /* Toodles.app */;
@@ -366,11 +366,7 @@
 			package = 12CCCE052F57C339001FC149 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
 		};
-		12CCCE0A2F57C339001FC149 /* FirebaseStorage */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 12CCCE052F57C339001FC149 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseStorage;
-		};
+
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1280D9DE2F57AB5A0037ABD4 /* Project object */;
