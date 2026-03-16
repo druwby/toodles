@@ -30,7 +30,6 @@ class AuthManager: ObservableObject {
             } else {
                 self.isAdmin = false
                 self.errorMessage = ""
-                self.successMessage = ""
             }
         }
     }

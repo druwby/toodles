@@ -28,10 +28,12 @@ struct LoginView: View {
 
             SecureField("Password", text: $password)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
+                .textContentType(.oneTimeCode)
 
             if isSignUp {
                 SecureField("Confirm Password", text: $confirmPassword)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .textContentType(.oneTimeCode)
             }
 
             if !authManager.errorMessage.isEmpty {
