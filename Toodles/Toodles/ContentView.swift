@@ -8,6 +8,9 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 20) {
+            Text("Welcome, \(authManager.user?.email ?? "User")")
+                .font(.headline)
+
             Text(status)
                 .padding()
 
@@ -18,7 +21,15 @@ struct ContentView: View {
             Button("Read Test Data") {
                 readTestData()
             }
+
+            Spacer()
+
+            Button("Sign Out") {
+                authManager.signOut()
+            }
+            .foregroundColor(.red)
         }
+        .padding()
     }
 
     func writeTestData() {
