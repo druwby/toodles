@@ -11,7 +11,7 @@ import FirebaseAuth
 import FirebaseFirestore
 
 class AuthManager: ObservableObject {
-    @Published var user: User?
+    @Published var user: FirebaseAuth.User?
     @Published var isSignedIn = false
     @Published var isAdmin = false
     @Published var isLoading = false
@@ -69,13 +69,11 @@ class AuthManager: ObservableObject {
             // Create Firestore user profile
             let db = Firestore.firestore()
             db.collection("users").document(firebaseUser.uid).setData([
-                "uid": firebaseUser.uid,
-                "email": email,
+                "userId": firebaseUser.uid,
+                "eduEmail": email,
                 "displayName": "",
                 "bio": "",
-                "interests": [String](),
-                "createdAt": Date(),
-                "updatedAt": Date()
+                "toastScore": 100
             ]) { error in
                 if let error = error {
                     print("Error creating user profile: \(error.localizedDescription)")
