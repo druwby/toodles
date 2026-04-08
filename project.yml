@@ -27,14 +27,9 @@ targets:
       - path: Toodles
         excludes:
           - "**/.DS_Store"
+          # _Reference/ holds harvested Daily.co code that imports `Daily` —
+          # re-added behind #if !DEMO_MODE in Phase 7.
           - "_Reference/**"
-          # Pre-existing unmerged files from main — re-harvested in Phase 2.
-          # Excluded now because DailyRoomManager/etc. import the `Daily` module
-          # which isn't a dependency until Phase 7 brings it back behind
-          # #if !DEMO_MODE.
-          - "Matchmaking/**"
-          - "Safety/**"
-          - "Video/**"
     dependencies:
       - package: Firebase
         product: FirebaseAuth

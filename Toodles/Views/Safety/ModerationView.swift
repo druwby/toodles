@@ -70,7 +70,7 @@ struct ReportUserView: View {
     }
 
     private func submitReport() {
-        guard let currentUID = AuthManager.shared.currentUser?.uid else { return }
+        guard let currentUID = AuthManager.shared.currentUID else { return }
         Task {
             do {
                 try await reportingService.submitReport(
@@ -148,7 +148,7 @@ struct BlockUserView: View {
     }
 
     private func blockUser() {
-        guard let currentUID = AuthManager.shared.currentUser?.uid else { return }
+        guard let currentUID = AuthManager.shared.currentUID else { return }
         isBlocking = true
         Task {
             do {
