@@ -1,14 +1,19 @@
+// DailyVideoCallViewModel.swift
+// Toodles
+//
+// TDV-72: Implement DailyVideoCallViewModel for call state management
+// Updated: Added retry logic to joinCall and callFailedWithError delegate
+// Parent: TDV-41 - Integrate Daily SDK for peer-to-peer video calling
+
 import Foundation
 import Daily
 import Combine
-
-// TDV-72: Implement DailyVideoCallViewModel for call state management
-// Parent: TDV-41 - Integrate Daily SDK for peer-to-peer video calling
 
 /// ViewModel that manages the state and lifecycle of a Daily.co video call.
 class DailyVideoCallViewModel: NSObject, ObservableObject {
 
     // MARK: - Published State
+
     @Published var isInCall: Bool = false
     @Published var isMicMuted: Bool = false
     @Published var isCameraOff: Bool = false
@@ -19,10 +24,25 @@ class DailyVideoCallViewModel: NSObject, ObservableObject {
     @Published var remoteParticipantName: String?
 
     // MARK: - Private Properties
+
     private let callClient: CallClient
     private var cancellables = Set<AnyCancellable>()
 
+    /// Maximum number of join/reconnect attempts.
+    private let maxRetries = 3
+    /// Base delay (seconds) for exponential back-off between retries.
+    private let retryBaseDelay: TimeInterval = 1.5
+
+    /// Tracks the current join attempt count for retry logic.
+    private var joinAttempt: Int = 0
+    /// Stores the last URL and token used to join, enabling auto-reconnect.
+    private var lastJoinURL: URL?
+    private var lastJoinToken: String?
+
+    private var isCameraFront: Bool = true
+
     // MARK: - Init
+
     override init() {
         self.callClient = CallClient()
         super.init()
@@ -31,7 +51,15 @@ class DailyVideoCallViewModel: NSObject, ObservableObject {
 
     // MARK: - Call Lifecycle
 
+    /// Joins a Daily.co call, retrying up to maxRetries times on failure.
     func joinCall(url: URL, token: String? = nil) {
+        lastJoinURL = url
+        lastJoinToken = token
+        joinAttempt = 0
+        attemptJoin(url: url, token: token)
+    }
+
+    private func attemptJoin(url: URL, token: String?) {
         let settings = ClientSettingsUpdate(
             inputs: .set(InputSettingsUpdate(
                 camera: .set(CameraInputSettingsUpdate(isEnabled: .set(true))),
@@ -39,14 +67,28 @@ class DailyVideoCallViewModel: NSObject, ObservableObject {
             ))
         )
         callClient.updateInputs(settings.inputs ?? .unchanged)
+
         callClient.join(url: url, token: token.map { .init($0) }) { [weak self] result in
+            guard let self = self else { return }
             DispatchQueue.main.async {
                 switch result {
                 case .success:
-                    self?.isInCall = true
+                    self.isInCall = true
+                    self.isShowingError = false
+                    self.errorMessage = nil
+                    self.joinAttempt = 0
                 case .failure(let error):
-                    self?.errorMessage = error.localizedDescription
-                    self?.isShowingError = true
+                    self.joinAttempt += 1
+                    if self.joinAttempt < self.maxRetries {
+                        let delay = self.retryBaseDelay * pow(2.0, Double(self.joinAttempt - 1))
+                        self.errorMessage = "Join failed (attempt \(self.joinAttempt)/\(self.maxRetries)). Retrying in \(Int(delay))s..."
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                            self.attemptJoin(url: url, token: token)
+                        }
+                    } else {
+                        self.errorMessage = "Could not join the call after \(self.maxRetries) attempts: \(error.localizedDescription)"
+                        self.isShowingError = true
+                    }
                 }
             }
         }
@@ -59,6 +101,7 @@ class DailyVideoCallViewModel: NSObject, ObservableObject {
                 self?.remoteVideoTrack = nil
                 self?.localVideoTrack = nil
                 self?.remoteParticipantName = nil
+                self?.joinAttempt = 0
             }
         }
     }
@@ -89,11 +132,10 @@ class DailyVideoCallViewModel: NSObject, ObservableObject {
         )))
         isCameraFront.toggle()
     }
-
-    private var isCameraFront: Bool = true
 }
 
 // MARK: - CallClientDelegate
+
 extension DailyVideoCallViewModel: CallClientDelegate {
 
     func callClient(_ callClient: CallClient, participantJoined participant: Participant) {
@@ -120,11 +162,25 @@ extension DailyVideoCallViewModel: CallClientDelegate {
         }
     }
 
+    /// Called by the Daily SDK when the call fails mid-session.
+    /// Attempts to automatically reconnect using the last known URL and token.
     func callClient(_ callClient: CallClient, callFailedWithError error: Error) {
         DispatchQueue.main.async {
-            self.errorMessage = error.localizedDescription
-            self.isShowingError = true
             self.isInCall = false
+
+            guard let url = self.lastJoinURL, self.joinAttempt < self.maxRetries else {
+                self.errorMessage = "Call failed: \(error.localizedDescription)"
+                self.isShowingError = true
+                return
+            }
+
+            self.joinAttempt += 1
+            let delay = self.retryBaseDelay * pow(2.0, Double(self.joinAttempt - 1))
+            self.errorMessage = "Call dropped. Reconnecting (attempt \(self.joinAttempt)/\(self.maxRetries))..."
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                self.attemptJoin(url: url, token: self.lastJoinToken)
+            }
         }
     }
 }
