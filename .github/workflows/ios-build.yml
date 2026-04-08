@@ -1,0 +1,64 @@
+name: iOS Build
+on:
+  push:
+    branches: [integration, main, develop]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show environment
+        run: |
+          sw_vers
+          xcodebuild -version
+          ls /Applications | grep -i xcode || true
+
+      - name: Select latest Xcode 15.x
+        run: |
+          # Find the newest Xcode 15.x available on the runner
+          XCODE=$(ls -d /Applications/Xcode_15*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            XCODE=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          fi
+          echo "Selecting Xcode at: $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project Toodles.xcodeproj \
+            -scheme Toodles
+
+      - name: Build for Simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Toodles.xcodeproj \
+            -scheme Toodles \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/ \
+            build 2>&1 | tail -300
+
+      - name: Zip simulator .app
+        run: |
+          cd build/Build/Products/Debug-iphonesimulator
+          zip -r Toodles.app.zip Toodles.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Toodles-simulator-app
+          path: build/Build/Products/Debug-iphonesimulator/Toodles.app.zip
+          retention-days: 7

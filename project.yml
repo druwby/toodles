@@ -1,0 +1,47 @@
+name: Toodles
+options:
+  bundleIdPrefix: edu.csuf.toodles
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGNING_ALLOWED: NO
+    PRODUCT_BUNDLE_IDENTIFIER: edu.csuf.toodles
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEMO_MODE"
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    from: "11.0.0"
+targets:
+  Toodles:
+    type: application
+    platform: iOS
+    sources:
+      - path: Toodles
+        excludes:
+          - "**/.DS_Store"
+          - "_Reference/**"
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: Firebase
+        product: FirebaseStorage
+    info:
+      path: Toodles/Resources/Info.plist
+      properties:
+        NSCameraUsageDescription: "Toodles needs camera access to show your video in calls."
+        NSMicrophoneUsageDescription: "Toodles needs microphone access for video calls."
+        NSPhotoLibraryUsageDescription: "Toodles needs photo library access to upload your profile picture."
+        CFBundleDisplayName: Toodles
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
