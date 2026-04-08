@@ -2,7 +2,7 @@ name: Toodles
 options:
   bundleIdPrefix: edu.csuf.toodles
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "17.0"
   createIntermediateGroups: true
 settings:
   base:
@@ -12,7 +12,7 @@ settings:
     CODE_SIGNING_REQUIRED: NO
     CODE_SIGNING_ALLOWED: NO
     PRODUCT_BUNDLE_IDENTIFIER: edu.csuf.toodles
-    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     TARGETED_DEVICE_FAMILY: "1,2"
     SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEMO_MODE"
 packages:
