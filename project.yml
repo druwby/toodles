@@ -28,6 +28,13 @@ targets:
         excludes:
           - "**/.DS_Store"
           - "_Reference/**"
+          # Pre-existing unmerged files from main — re-harvested in Phase 2.
+          # Excluded now because DailyRoomManager/etc. import the `Daily` module
+          # which isn't a dependency until Phase 7 brings it back behind
+          # #if !DEMO_MODE.
+          - "Matchmaking/**"
+          - "Safety/**"
+          - "Video/**"
     dependencies:
       - package: Firebase
         product: FirebaseAuth
