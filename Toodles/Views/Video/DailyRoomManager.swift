@@ -1,8 +1,15 @@
-import Foundation
-import Daily
-
+// Daily.co SDK integration — preserved for the capstone report narrative.
+// Compiled only when DEMO_MODE is NOT set. The demo build uses
+// MockVideoCallView instead; this file documents the intended real
+// WebRTC integration and is ready to go when Daily.co SDK + API key
+// are wired into the project.
+//
 // TDV-70: Implement DailyRoomManager for room creation and teardown
 // Parent: TDV-41 - Integrate Daily SDK for peer-to-peer video calling
+
+#if !DEMO_MODE
+import Foundation
+import Daily
 
 /// Manages the lifecycle of Daily.co video rooms including creation, joining, and teardown.
 class DailyRoomManager: ObservableObject {
@@ -94,3 +101,4 @@ class DailyRoomManager: ObservableObject {
 private enum DailyConfig {
     static let apiKey: String = { Bundle.main.infoDictionary?["DAILY_API_KEY"] as? String ?? "" }()
 }
+#endif

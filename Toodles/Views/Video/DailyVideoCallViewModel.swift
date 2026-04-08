@@ -1,9 +1,14 @@
+// Daily.co SDK integration — preserved for the capstone report narrative.
+// Compiled only when DEMO_MODE is NOT set. See MockVideoCallView for
+// the active demo video call view-model.
+//
+// TDV-72: Implement DailyVideoCallViewModel for call state management
+// Parent: TDV-41 - Integrate Daily SDK for peer-to-peer video calling
+
+#if !DEMO_MODE
 import Foundation
 import Daily
 import Combine
-
-// TDV-72: Implement DailyVideoCallViewModel for call state management
-// Parent: TDV-41 - Integrate Daily SDK for peer-to-peer video calling
 
 /// ViewModel that manages the state and lifecycle of a Daily.co video call.
 class DailyVideoCallViewModel: NSObject, ObservableObject {
@@ -128,3 +133,4 @@ extension DailyVideoCallViewModel: CallClientDelegate {
         }
     }
 }
+#endif

@@ -1,8 +1,13 @@
-import SwiftUI
-import Daily
-
+// Daily.co SDK integration — preserved for the capstone report narrative.
+// Compiled only when DEMO_MODE is NOT set. See MockVideoCallView for
+// the active demo video call UI.
+//
 // TDV-71: Build DailyVideoCallView SwiftUI interface with call controls
 // Parent: TDV-41 - Integrate Daily SDK for peer-to-peer video calling
+
+#if !DEMO_MODE
+import SwiftUI
+import Daily
 
 /// Main SwiftUI view for the Daily.co video call interface.
 struct DailyVideoCallView: View {
@@ -128,3 +133,4 @@ struct DailyVideoCallView: View {
         .background(Color(white: 0.1))
     }
 }
+#endif

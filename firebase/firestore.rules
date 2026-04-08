@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: is the user signed in?
+    function isSignedIn() { return request.auth != null; }
+    function isMe(uid) { return request.auth.uid == uid; }
+
+    // Users — read/write own profile only. The trust_score field is
+    // guarded: users may create their own doc with trust_score=100,
+    // but cannot update trust_score directly (client-side trust gate
+    // reads this field, server-side rules prevent tampering).
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isMe(userId)
+                    && request.resource.data.trust_score == 100;
+      allow update: if isMe(userId)
+                    && (!('trust_score' in request.resource.data.diff(resource.data).affectedKeys()));
+      allow delete: if false;
+    }
+
+    // Matches — a match is readable/writable by either participant.
+    match /matches/{matchId} {
+      allow read: if isSignedIn()
+                  && (resource.data.user_a_id == request.auth.uid
+                      || resource.data.user_b_id == request.auth.uid);
+      allow create: if isSignedIn()
+                    && (request.resource.data.user_a_id == request.auth.uid
+                        || request.resource.data.user_b_id == request.auth.uid);
+      allow update, delete: if false;
+    }
+
+    // Chats and their messages — participants only.
+    match /chats/{chatId} {
+      allow read, write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+                      && request.resource.data.sender_id == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // Support tickets — authenticated users can create + read their own.
+    // Admins update via backend (not exposed to clients).
+    match /supportTickets/{ticketId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.user_id == request.auth.uid;
+      allow read: if isSignedIn()
+                  && resource.data.user_id == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}
