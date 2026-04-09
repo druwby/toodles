@@ -1,5 +1,4 @@
 import SwiftUI
-import AVFoundation
 
 struct MockVideoCallView: View {
     let matchName: String
@@ -7,75 +6,153 @@ struct MockVideoCallView: View {
 
     @State private var remaining: Int = 60
     @State private var muted: Bool = false
-    @State private var useFrontCamera: Bool = true
     @State private var showFeedback = false
+    @State private var pulseScale: CGFloat = 1.0
 
     var body: some View {
         ZStack {
-            CameraPreview(useFrontCamera: $useFrontCamera)
-                .ignoresSafeArea()
+            // Dark gradient background simulating a video call
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.08, blue: 0.14),
+                    Color(red: 0.12, green: 0.10, blue: 0.22),
+                    Color(red: 0.06, green: 0.06, blue: 0.12)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-            VStack {
+            VStack(spacing: 0) {
+                // Top bar — match name + timer
                 HStack {
-                    Text(matchName)
-                        .font(.title2.bold())
-                        .foregroundStyle(.white)
-                        .padding(10)
-                        .background(.black.opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(.green)
+                            .frame(width: 10, height: 10)
+                        Text(matchName)
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                    }
                     Spacer()
-                    Text("0:\(String(format: "%02d", remaining))")
-                        .font(.title2.bold())
-                        .foregroundStyle(.white)
-                        .padding(10)
-                        .background(.black.opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    Text(timerString)
+                        .font(.system(size: 20, weight: .bold, design: .monospaced))
+                        .foregroundStyle(remaining <= 10 ? .red : .white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
                 }
-                .padding(.horizontal)
-                .padding(.top, 50)
+                .padding(.horizontal, 20)
+                .padding(.top, 56)
 
                 Spacer()
 
+                // Center — "remote user" large card (Tinder-style)
+                VStack(spacing: 24) {
+                    ZStack {
+                        // Animated pulse ring
+                        Circle()
+                            .stroke(Color.blue.opacity(0.3), lineWidth: 3)
+                            .frame(width: 160, height: 160)
+                            .scaleEffect(pulseScale)
+                            .opacity(2.0 - pulseScale)
+
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [ToodlesTheme.bodyTop, ToodlesTheme.headerBlue],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 140, height: 140)
+                            .shadow(color: .blue.opacity(0.4), radius: 20, y: 8)
+
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 60))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+
+                    VStack(spacing: 6) {
+                        Text(matchName)
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(.white)
+                        HStack(spacing: 6) {
+                            Image(systemName: "waveform")
+                                .foregroundStyle(.green)
+                                .symbolEffect(.variableColor.iterative)
+                            Text("Connected")
+                                .foregroundStyle(.green)
+                                .font(.subheadline.bold())
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // "Your video" small PIP in bottom-right
                 HStack {
                     Spacer()
-                    VStack(spacing: 6) {
-                        Circle().fill(.gray.opacity(0.7)).frame(width: 48, height: 48)
-                            .overlay(Image(systemName: "person.fill").foregroundStyle(.white))
-                        Text(matchName).font(.caption2).foregroundStyle(.white)
+                    VStack(spacing: 4) {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(red: 0.15, green: 0.15, blue: 0.25), Color(red: 0.1, green: 0.1, blue: 0.18)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(width: 100, height: 140)
+                            .overlay(
+                                VStack(spacing: 8) {
+                                    Image(systemName: "person.fill")
+                                        .font(.system(size: 28))
+                                        .foregroundStyle(.white.opacity(0.6))
+                                    Text("You")
+                                        .font(.caption)
+                                        .foregroundStyle(.white.opacity(0.6))
+                                }
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(.white.opacity(0.15), lineWidth: 1)
+                            )
                     }
-                    .padding(12)
-                    .background(.black.opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.trailing, 20)
                 }
-                .padding()
 
-                HStack(spacing: 40) {
-                    Button { muted.toggle() } label: {
-                        Image(systemName: muted ? "mic.slash.fill" : "mic.fill")
-                            .font(.title2)
-                            .frame(width: 64, height: 64)
-                            .background(muted ? .red : .black.opacity(0.5))
-                            .foregroundStyle(.white)
-                            .clipShape(Circle())
+                // Bottom controls
+                HStack(spacing: 28) {
+                    // Mute button
+                    callButton(
+                        icon: muted ? "mic.slash.fill" : "mic.fill",
+                        color: muted ? .red : Color(white: 0.25),
+                        size: 60
+                    ) {
+                        muted.toggle()
                     }
-                    Button { hangup() } label: {
-                        Image(systemName: "phone.down.fill")
-                            .font(.title)
-                            .frame(width: 72, height: 72)
-                            .background(.red)
-                            .foregroundStyle(.white)
-                            .clipShape(Circle())
+
+                    // End call button (larger, red)
+                    callButton(
+                        icon: "phone.down.fill",
+                        color: .red,
+                        size: 72
+                    ) {
+                        hangup()
                     }
-                    Button { useFrontCamera.toggle() } label: {
-                        Image(systemName: "camera.rotate.fill")
-                            .font(.title2)
-                            .frame(width: 64, height: 64)
-                            .background(.black.opacity(0.5))
-                            .foregroundStyle(.white)
-                            .clipShape(Circle())
+
+                    // Camera flip button
+                    callButton(
+                        icon: "camera.rotate.fill",
+                        color: Color(white: 0.25),
+                        size: 60
+                    ) {
+                        // No-op in mock
                     }
                 }
                 .padding(.bottom, 50)
+                .padding(.top, 20)
             }
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
@@ -84,61 +161,37 @@ struct MockVideoCallView: View {
                 if remaining == 0 { hangup() }
             }
         }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                pulseScale = 1.4
+            }
+        }
         .fullScreenCover(isPresented: $showFeedback) {
             PostSessionFeedbackView(matchName: matchName, onDone: { onEnd() })
         }
     }
 
+    // MARK: - Helpers
+
+    private var timerString: String {
+        let m = remaining / 60
+        let s = remaining % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    private func callButton(icon: String, color: Color, size: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: size * 0.38))
+                .foregroundStyle(.white)
+                .frame(width: size, height: size)
+                .background(color)
+                .clipShape(Circle())
+                .shadow(color: color.opacity(0.5), radius: 8, y: 4)
+        }
+    }
+
     private func hangup() {
         showFeedback = true
-    }
-}
-
-// MARK: - AVFoundation camera preview (UIViewRepresentable bridge)
-
-struct CameraPreview: UIViewRepresentable {
-    @Binding var useFrontCamera: Bool
-
-    func makeUIView(context: Context) -> PreviewView {
-        let v = PreviewView()
-        v.configure(front: useFrontCamera)
-        return v
-    }
-
-    func updateUIView(_ uiView: PreviewView, context: Context) {
-        uiView.configure(front: useFrontCamera)
-    }
-}
-
-final class PreviewView: UIView {
-    private var session: AVCaptureSession?
-    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
-
-    func configure(front: Bool) {
-        // Tear down any existing session before re-configuring
-        session?.stopRunning()
-        let newSession = AVCaptureSession()
-        newSession.sessionPreset = .medium
-
-        let position: AVCaptureDevice.Position = front ? .front : .back
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
-              let input = try? AVCaptureDeviceInput(device: device) else {
-            // On the iOS Simulator without a passthrough camera this will fail gracefully;
-            // the preview layer shows the previous session or stays black — still usable for demo.
-            return
-        }
-        newSession.beginConfiguration()
-        if newSession.canAddInput(input) { newSession.addInput(input) }
-        newSession.commitConfiguration()
-
-        if let layer = self.layer as? AVCaptureVideoPreviewLayer {
-            layer.session = newSession
-            layer.videoGravity = .resizeAspectFill
-        }
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            newSession.startRunning()
-        }
-        self.session = newSession
     }
 }
