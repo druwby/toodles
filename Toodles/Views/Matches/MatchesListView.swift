@@ -44,57 +44,82 @@ struct MatchesListView: View {
     @StateObject private var viewModel = MatchesViewModel()
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            ToodlesHeader(title: "Matches")
+
             ZStack {
-                LinearGradient(colors: [.blue, .cyan.opacity(0.6)], startPoint: .top, endPoint: .bottom)
-                    .ignoresSafeArea()
+                ToodlesTheme.bodyGradient.ignoresSafeArea(edges: .bottom)
+
                 if viewModel.isLoading {
                     ProgressView().tint(.white)
                 } else if viewModel.rows.isEmpty {
                     VStack(spacing: 12) {
-                        Image(systemName: "heart.slash").font(.system(size: 44)).foregroundStyle(.white.opacity(0.6))
-                        Text("No matches yet").foregroundStyle(.white).font(.title3.bold())
-                        Text("Tap Start Chatting on the Home tab!").foregroundStyle(.white.opacity(0.75))
+                        Image(systemName: "heart.slash")
+                            .font(.system(size: 44))
+                            .foregroundStyle(.white.opacity(0.8))
+                        Text("No matches yet")
+                            .foregroundStyle(.white)
+                            .font(.title3.bold())
+                        Text("Tap Start Chatting on the Home tab!")
+                            .foregroundStyle(.white.opacity(0.75))
                     }
                 } else {
-                    List(viewModel.rows) { row in
-                        HStack {
-                            Circle().fill(.white.opacity(0.4)).frame(width: 44, height: 44)
-                                .overlay(Text(String(row.otherName.prefix(2)).uppercased()).foregroundStyle(.white))
-                            VStack(alignment: .leading) {
-                                Text(row.otherName).font(.body.bold()).foregroundStyle(.white)
-                                Text(statusLabel(row.status)).font(.caption).foregroundStyle(.white.opacity(0.75))
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(viewModel.rows) { row in
+                                matchCard(row)
                             }
-                            Spacer()
-                            statusIcon(row.status)
                         }
-                        .listRowBackground(Color.white.opacity(0.15))
+                        .padding(16)
                     }
-                    .scrollContentBackground(.hidden)
                 }
             }
-            .navigationTitle("Matches")
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .onAppear { viewModel.load() }
         }
+        .onAppear { viewModel.load() }
     }
 
-    private func statusLabel(_ s: String) -> String {
-        switch s {
-        case "matched": return "Liked"
-        case "rejected": return "Passed"
-        case "reported": return "Reported"
-        default: return s
+    private func matchCard(_ row: MatchRow) -> some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(ToodlesTheme.avatarBlue)
+                .frame(width: 44, height: 44)
+                .overlay(
+                    Text(String(row.otherName.prefix(2)).uppercased())
+                        .font(.caption.bold())
+                        .foregroundStyle(ToodlesTheme.avatarText)
+                )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.otherName)
+                    .font(.body.bold())
+                    .foregroundStyle(.black)
+                Text(timeAgoString(row.timestamp))
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            Spacer()
+            HStack(spacing: 14) {
+                Image(systemName: "heart")
+                    .foregroundStyle(row.status == "matched" ? .green : Color.gray.opacity(0.4))
+                Image(systemName: "xmark")
+                    .foregroundStyle(row.status == "rejected" ? .red : Color.gray.opacity(0.4))
+                Image(systemName: "flag")
+                    .foregroundStyle(row.status == "reported" ? .red : Color.gray.opacity(0.4))
+            }
+            .font(.body)
         }
+        .padding(14)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    @ViewBuilder
-    private func statusIcon(_ s: String) -> some View {
-        switch s {
-        case "matched": Image(systemName: "heart.fill").foregroundStyle(.pink)
-        case "rejected": Image(systemName: "xmark").foregroundStyle(.gray)
-        case "reported": Image(systemName: "flag.fill").foregroundStyle(.orange)
-        default: EmptyView()
-        }
+    private func timeAgoString(_ date: Date) -> String {
+        let seconds = Int(Date().timeIntervalSince(date))
+        if seconds < 60 { return "just now" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes) min ago" }
+        let hours = minutes / 60
+        if hours < 24 { return "\(hours) hr ago" }
+        let days = hours / 24
+        return "\(days) day\(days == 1 ? "" : "s") ago"
     }
 }

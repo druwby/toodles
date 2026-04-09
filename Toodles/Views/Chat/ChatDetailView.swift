@@ -47,6 +47,7 @@ struct ChatDetailView: View {
     let otherName: String
     @StateObject private var viewModel: ChatViewModel
     @State private var draft = ""
+    @Environment(\.dismiss) private var dismiss
 
     init(chatId: String, otherName: String) {
         self.chatId = chatId
@@ -55,58 +56,104 @@ struct ChatDetailView: View {
     }
 
     var body: some View {
-        ZStack {
-            LinearGradient(colors: [.blue, .cyan.opacity(0.6)], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(spacing: 8) {
-                        ForEach(viewModel.messages) { msg in
-                            messageBubble(msg)
-                        }
-                    }
-                    .padding()
-                }
+        VStack(spacing: 0) {
+            ToodlesHeader(
+                title: "",
+                showBackButton: true,
+                onBack: { dismiss() },
+                trailingIcon: "ellipsis",
+                centerContent: AnyView(headerCenter)
+            )
 
-                HStack {
-                    TextField("Type a message...", text: $draft)
-                        .padding(12)
-                        .background(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                    Button {
-                        if let uid = AuthManager.shared.currentUID {
-                            viewModel.send(text: draft, senderId: uid)
-                            draft = ""
+            ZStack {
+                ToodlesTheme.bodyGradient.ignoresSafeArea(edges: .bottom)
+
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(viewModel.messages) { msg in
+                                messageBubble(msg)
+                            }
                         }
-                    } label: {
-                        Image(systemName: "paperplane.fill")
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(.orange)
-                            .clipShape(Circle())
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
                     }
+
+                    // Input row
+                    HStack(spacing: 10) {
+                        TextField("Type a message...", text: $draft)
+                            .padding(14)
+                            .background(Color.white)
+                            .clipShape(Capsule())
+                        Button {
+                            if let uid = AuthManager.shared.currentUID {
+                                viewModel.send(text: draft, senderId: uid)
+                                draft = ""
+                            }
+                        } label: {
+                            Image(systemName: "paperplane.fill")
+                                .foregroundStyle(.white)
+                                .frame(width: 48, height: 48)
+                                .background(ToodlesTheme.accent)
+                                .clipShape(Circle())
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(ToodlesTheme.bodyBottom)
                 }
-                .padding()
             }
         }
-        .navigationTitle(otherName)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear { viewModel.start() }
         .onDisappear { viewModel.stop() }
     }
 
+    // MARK: - Header center (avatar + name + online status)
+
+    private var headerCenter: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(ToodlesTheme.avatarBlue)
+                .frame(width: 36, height: 36)
+                .overlay(
+                    Text(String(otherName.prefix(2)).uppercased())
+                        .font(.caption.bold())
+                        .foregroundStyle(ToodlesTheme.avatarText)
+                )
+            VStack(alignment: .leading, spacing: 0) {
+                Text(otherName)
+                    .font(.body.bold())
+                    .foregroundStyle(.white)
+                Text("Online")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.75))
+            }
+        }
+    }
+
+    // MARK: - Message bubble (light blue on both sides per Figma)
+
     @ViewBuilder
     private func messageBubble(_ msg: ChatMessage) -> some View {
         let isMe = msg.senderId == AuthManager.shared.currentUID
-        HStack {
-            if isMe { Spacer() }
+        VStack(alignment: isMe ? .trailing : .leading, spacing: 4) {
             Text(msg.text)
-                .padding(12)
-                .background(isMe ? Color.orange : Color.white.opacity(0.9))
-                .foregroundStyle(isMe ? .white : .black)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-            if !isMe { Spacer() }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(ToodlesTheme.chatBubble)
+                .foregroundStyle(.black)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+            Text(timeString(msg.sentAt))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.9))
         }
+        .frame(maxWidth: .infinity, alignment: isMe ? .trailing : .leading)
+    }
+
+    private func timeString(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f.string(from: date)
     }
 }

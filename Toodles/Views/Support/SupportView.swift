@@ -7,68 +7,80 @@ struct SupportView: View {
     @State private var showConfirmation = false
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            ToodlesHeader(title: "Customer Support")
+
             ZStack {
-                LinearGradient(colors: [.blue, .cyan.opacity(0.6)], startPoint: .top, endPoint: .bottom)
-                    .ignoresSafeArea()
+                ToodlesTheme.bodyGradient.ignoresSafeArea(edges: .bottom)
+
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 14) {
                         Text("How can we help you?")
-                            .font(.title2.bold())
+                            .font(.title3.bold())
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top)
+                            .padding(.top, 12)
 
-                        categoryButton(icon: "flag.fill", title: "Report User", subtitle: "Report inappropriate behavior or content", category: "report_user")
-                        categoryButton(icon: "message.fill", title: "App Feedback", subtitle: "Share your thoughts and suggestions", category: "feedback")
-                        categoryButton(icon: "wrench.fill", title: "Technical Help", subtitle: "Get help with technical issues", category: "tech_help")
+                        categoryCard(icon: "flag.fill", iconColor: ToodlesTheme.accent, title: "Report User", subtitle: "Report inappropriate behavior or content", category: "report_user")
+                        categoryCard(icon: "message.fill", iconColor: ToodlesTheme.bodyTop, title: "App Feedback", subtitle: "Share your thoughts and suggestions", category: "feedback")
+                        categoryCard(icon: "wrench.fill", iconColor: ToodlesTheme.bodyTop, title: "Technical Help", subtitle: "Get help with technical issues", category: "tech_help")
 
                         if !selectedCategory.isEmpty {
-                            TextField("Subject", text: $subject)
-                                .padding()
-                                .background(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                            TextEditor(text: $description)
-                                .frame(height: 120)
-                                .padding(8)
-                                .background(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                            Button("Submit") { submit() }
-                                .buttonStyle(ToodlesPrimaryButtonStyle())
-                                .disabled(subject.isEmpty || description.isEmpty)
+                            VStack(alignment: .leading, spacing: 10) {
+                                TextField("Subject", text: $subject)
+                                    .padding(12)
+                                    .background(Color.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                TextEditor(text: $description)
+                                    .frame(height: 120)
+                                    .padding(8)
+                                    .background(Color.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .scrollContentBackground(.hidden)
+                                Button("Submit") { submit() }
+                                    .buttonStyle(ToodlesPrimaryButtonStyle())
+                                    .disabled(subject.isEmpty || description.isEmpty)
+                            }
+                            .padding(.top, 8)
                         }
                     }
-                    .padding()
+                    .padding(16)
                 }
             }
-            .navigationTitle("Customer Support")
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .alert("Ticket submitted", isPresented: $showConfirmation) {
-                Button("OK", role: .cancel) { reset() }
-            }
+        }
+        .alert("Ticket submitted", isPresented: $showConfirmation) {
+            Button("OK", role: .cancel) { reset() }
         }
     }
 
-    private func categoryButton(icon: String, title: String, subtitle: String, category: String) -> some View {
+    private func categoryCard(icon: String, iconColor: Color, title: String, subtitle: String, category: String) -> some View {
         Button {
             selectedCategory = category
         } label: {
-            HStack {
-                Image(systemName: icon).font(.title2).frame(width: 40)
-                VStack(alignment: .leading) {
-                    Text(title).bold()
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(iconColor)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.body.bold())
+                        .foregroundStyle(.black)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
                 }
                 Spacer()
                 if selectedCategory == category {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.orange)
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(ToodlesTheme.accent)
                 }
             }
-            .padding()
-            .background(.white)
+            .padding(14)
+            .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 12))
-            .foregroundStyle(.black)
         }
+        .buttonStyle(.plain)
     }
 
     private func submit() {

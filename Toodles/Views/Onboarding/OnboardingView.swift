@@ -46,14 +46,4 @@ struct OnboardingView: View {
     }
 }
 
-struct ToodlesPrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.title3.bold())
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 56)
-            .background(configuration.isPressed ? Color.orange.opacity(0.7) : Color.orange)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-}
+// NOTE: ToodlesPrimaryButtonStyle is defined in Toodles/Views/Components/ToodlesTheme.swift
