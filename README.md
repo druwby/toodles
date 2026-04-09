@@ -4,9 +4,9 @@ Video-dating iOS application built for CSUF CPSC 491, Spring 2026. Spontaneous 6
 
 ## Team
 
-- **Danny Shtansky** — Project Management, Lead iOS Development, Jira Management, Confluence Documentation
-- **Drew Butler** — iOS Development, Backend Integration (repo owner)
-- **Vincent Polanco** — iOS Development, UI/UX Design
+- **Danny Shtansky** 
+- **Drew Butler** 
+- **Vincent Polanco** 
 - **Chaitanya Talluri**
 - **Alan Tsan**
 
