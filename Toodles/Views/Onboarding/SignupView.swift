@@ -20,13 +20,28 @@ struct SignupView: View {
                         .foregroundStyle(.white.opacity(0.85))
                         .multilineTextAlignment(.center)
 
-                    Group {
+                    // Email field with domain autofill
+                    VStack(spacing: 0) {
                         TextField("Email", text: $viewModel.email)
                             .keyboardType(.emailAddress)
                             .textContentType(.emailAddress)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                            .padding()
+                            .background(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
 
+                        // Domain suggestion chips — appear when @ is typed
+                        if viewModel.email.contains("@") && !viewModel.email.hasSuffix(".edu") {
+                            HStack(spacing: 8) {
+                                domainChip("@csu.fullerton.edu")
+                                domainChip("@fullerton.edu")
+                            }
+                            .padding(.top, 8)
+                        }
+                    }
+
+                    Group {
                         TextField("Display name", text: $viewModel.displayName)
                             .textContentType(.name)
 
@@ -59,6 +74,25 @@ struct SignupView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+
+    private func domainChip(_ domain: String) -> some View {
+        Button {
+            // Replace everything after @ with the selected domain
+            if let atIndex = viewModel.email.firstIndex(of: "@") {
+                viewModel.email = String(viewModel.email[viewModel.email.startIndex..<atIndex]) + domain
+            } else {
+                viewModel.email += domain
+            }
+        } label: {
+            Text(domain)
+                .font(.caption.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(ToodlesTheme.headerBlue)
+                .clipShape(Capsule())
+        }
     }
 
     private var formValid: Bool {
