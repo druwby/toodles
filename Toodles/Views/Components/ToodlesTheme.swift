@@ -17,6 +17,9 @@ enum ToodlesTheme {
     /// Light blue for interest chips + chat bubbles.
     static let chipBlue = Color(red: 0.87, green: 0.93, blue: 1.0)
 
+    /// Alias for chat message bubbles — same color as chipBlue, different semantic use.
+    static let chatBubble = Color(red: 0.87, green: 0.93, blue: 1.0)
+
     /// Blue used for avatar backgrounds in white cards.
     static let avatarBlue = Color(red: 0.78, green: 0.87, blue: 1.0)
 
