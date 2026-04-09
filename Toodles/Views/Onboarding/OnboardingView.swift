@@ -5,6 +5,8 @@ struct OnboardingView: View {
 
     var body: some View {
         NavigationStack {
+            // Back button tint for pushed views (SignupView, LoginView)
+            // so the "< Back" chevron is visible on the blue gradient
             ZStack {
                 LinearGradient(
                     colors: [.blue, .cyan.opacity(0.6)],
@@ -43,6 +45,7 @@ struct OnboardingView: View {
                 }
             }
         }
+        .tint(.black)
     }
 }
 
