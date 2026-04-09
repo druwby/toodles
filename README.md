@@ -62,7 +62,7 @@ To set up Firebase:
 
 The Spring 2026 capstone demo runs via Appetize.io and is screen-shared over Zoom. Expected flow:
 
-1. Sign up with a `@csu.fullerton.edu` / `@fullerton.edu` email
+1. Sign up with a `` / `@edu` email
 2. Create profile (display name, bio, interests, photo)
 3. Tap **Start Chatting** on Home → trust score check → matchmaking spinner → mock video call
 4. 60-second countdown → Like / Pass / Report feedback
