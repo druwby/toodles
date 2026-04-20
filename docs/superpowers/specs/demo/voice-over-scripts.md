@@ -61,11 +61,11 @@ Read each scene as a separate Audacity recording. One WAV per scene = cheap reta
 
 ## Scene 6 — 60-Second Video Chat (target 60 sec) — **USE THIS ONE**
 
-You built a `MockVideoCallView` with a Tinder-dark UI specifically for environments where camera passthrough isn't available. That's *your engineering work* — own it in the VO:
+You built a `MockVideoCallView` with a Tinder-dark UI specifically for environments where camera passthrough isn't available. That's *your engineering work* — and the "no hang-up button" design decision is a product-thesis moment worth owning:
 
-> Here's the core Toodles experience: one sixty-second video chat, peer-to-peer through Daily dot co. Because the Daily SDK needs real camera hardware, we built a mock video call view for test environments like browser-based simulators — what you're seeing now. In production on a physical iOS device, the two tiles stream the users' real cameras. Everything else in this flow is live — the Daily room, the server-enforced timer, the auto-close at zero, the transition to the feedback screen.
+> Here's the core Toodles experience: one sixty-second video chat, peer-to-peer through Daily dot co. Because the Daily SDK needs real camera hardware, we built a mock video call view for test environments like browser-based simulators — what you're seeing now. In production on a physical iOS device, the two tiles stream the users' real cameras. Notice what's missing: there's no hang-up button. This is deliberate. The sixty-second timer is the only way the call ends normally — no ghosting, no bailing out. Users signal interest privately with the Like and Dislike buttons — the peer never sees the tap. A small report flag in the top-right keeps safety one tap away without being the primary affordance. When the timer hits zero, the room closes and both users move to the feedback screen.
 
-**Delivery:** slow, factual, proud. This is not an apology — it's describing a deliberate engineering choice. You architected a DEMO_MODE path specifically so the app would be demoable without real hardware. That's a point you *earn* grading credit for.
+**Delivery:** slow, factual, proud. This is not an apology — it's describing deliberate engineering choices. The "no hang-up" beat is the one faculty remember — land it with a brief pause before "This is deliberate."
 
 **Alternative (simpler, no mock-mode call-out):**
 
