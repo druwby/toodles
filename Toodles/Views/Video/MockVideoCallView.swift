@@ -8,10 +8,20 @@ struct MockVideoCallView: View {
     @State private var muted: Bool = false
     @State private var showFeedback = false
     @State private var pulseScale: CGFloat = 1.0
+    @State private var liked: Bool = false
+    @State private var disliked: Bool = false
+    @State private var reported: Bool = false
+
+    // Subtitle shown under the peer's name — makes the "mock stranger" feel like a real CSUF match.
+    // Swap this out per test account as you record different takes.
+    private var matchSubtitle: String { "CSU Fullerton · Senior · Computer Science" }
+
+    // Brand-aligned Like color. Toodles is blue; the heart reads in pink so it's
+    // unambiguously "like" and separates from the blue peer avatar.
+    private let likePink = Color(red: 0.96, green: 0.35, blue: 0.55)
 
     var body: some View {
         ZStack {
-            // Dark gradient background simulating a video call
             LinearGradient(
                 colors: [
                     Color(red: 0.08, green: 0.08, blue: 0.14),
@@ -24,8 +34,8 @@ struct MockVideoCallView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar — match name + timer
-                HStack {
+                // Top bar — match name + report + timer
+                HStack(spacing: 10) {
                     HStack(spacing: 8) {
                         Circle()
                             .fill(.green)
@@ -34,7 +44,22 @@ struct MockVideoCallView: View {
                             .font(.headline)
                             .foregroundStyle(.white)
                     }
+
                     Spacer()
+
+                    // Small report affordance (safety escape hatch). Intentionally subtle —
+                    // not a primary control, but always one tap away per the PDF's safety claims.
+                    Button {
+                        reported = true
+                    } label: {
+                        Image(systemName: reported ? "flag.fill" : "flag")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(reported ? .orange : .white.opacity(0.75))
+                            .frame(width: 32, height: 32)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                    }
+
                     Text(timerString)
                         .font(.system(size: 20, weight: .bold, design: .monospaced))
                         .foregroundStyle(remaining <= 10 ? .red : .white)
@@ -48,10 +73,9 @@ struct MockVideoCallView: View {
 
                 Spacer()
 
-                // Center — "remote user" large card (Tinder-style)
-                VStack(spacing: 24) {
+                // Center — peer card
+                VStack(spacing: 20) {
                     ZStack {
-                        // Animated pulse ring
                         Circle()
                             .stroke(Color.blue.opacity(0.3), lineWidth: 3)
                             .frame(width: 160, height: 160)
@@ -74,10 +98,15 @@ struct MockVideoCallView: View {
                             .foregroundStyle(.white.opacity(0.9))
                     }
 
-                    VStack(spacing: 6) {
+                    VStack(spacing: 4) {
                         Text(matchName)
                             .font(.system(size: 28, weight: .bold))
                             .foregroundStyle(.white)
+
+                        Text(matchSubtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.7))
+
                         HStack(spacing: 6) {
                             Image(systemName: "waveform")
                                 .foregroundStyle(.green)
@@ -86,67 +115,91 @@ struct MockVideoCallView: View {
                                 .foregroundStyle(.green)
                                 .font(.subheadline.bold())
                         }
+                        .padding(.top, 4)
                     }
                 }
 
                 Spacer()
 
-                // "Your video" small PIP in bottom-right
+                // Self-view PIP
                 HStack {
                     Spacer()
-                    VStack(spacing: 4) {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color(red: 0.15, green: 0.15, blue: 0.25), Color(red: 0.1, green: 0.1, blue: 0.18)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(red: 0.15, green: 0.15, blue: 0.25), Color(red: 0.1, green: 0.1, blue: 0.18)],
+                                startPoint: .top,
+                                endPoint: .bottom
                             )
-                            .frame(width: 100, height: 140)
-                            .overlay(
-                                VStack(spacing: 8) {
-                                    Image(systemName: "person.fill")
-                                        .font(.system(size: 28))
-                                        .foregroundStyle(.white.opacity(0.6))
-                                    Text("You")
-                                        .font(.caption)
-                                        .foregroundStyle(.white.opacity(0.6))
-                                }
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(.white.opacity(0.15), lineWidth: 1)
-                            )
-                    }
-                    .padding(.trailing, 20)
+                        )
+                        .frame(width: 100, height: 140)
+                        .overlay(
+                            VStack(spacing: 8) {
+                                Image(systemName: "person.crop.circle.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(.white.opacity(0.55))
+                                Text("You")
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.65))
+                            }
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(.white.opacity(0.15), lineWidth: 1)
+                        )
+                        .padding(.trailing, 20)
                 }
 
-                // Bottom controls
-                HStack(spacing: 28) {
-                    // Mute button
+                // Bottom controls — mic / Like / Dislike / camera-flip
+                // No hang-up button: per the product thesis, the 60-second timer is the only
+                // way the call ends normally. Safety is served by the Report flag in the top bar.
+                HStack(spacing: 16) {
                     callButton(
                         icon: muted ? "mic.slash.fill" : "mic.fill",
                         color: muted ? .red : Color(white: 0.25),
-                        size: 60
+                        size: 54
                     ) {
                         muted.toggle()
                     }
 
-                    // End call button (larger, red)
-                    callButton(
-                        icon: "phone.down.fill",
-                        color: .red,
-                        size: 72
-                    ) {
-                        hangup()
+                    // Like — heart. Pink when active. Private signal; the peer does not see.
+                    Button {
+                        liked = true
+                        if disliked { disliked = false }
+                    } label: {
+                        Image(systemName: liked ? "heart.fill" : "heart")
+                            .font(.system(size: 30, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 72, height: 72)
+                            .background(liked ? likePink : Color(white: 0.25))
+                            .clipShape(Circle())
+                            .shadow(color: (liked ? likePink : Color.clear).opacity(0.5), radius: 10, y: 4)
+                            .scaleEffect(liked ? 1.08 : 1.0)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: liked)
                     }
 
-                    // Camera flip button
+                    // Dislike — X. Neutral gray, not red. Private signal.
+                    Button {
+                        disliked = true
+                        if liked { liked = false }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 72, height: 72)
+                            .background(disliked ? Color(white: 0.40) : Color(white: 0.20))
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle().stroke(Color.white.opacity(disliked ? 0.5 : 0.1), lineWidth: 1)
+                            )
+                            .scaleEffect(disliked ? 1.08 : 1.0)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: disliked)
+                    }
+
                     callButton(
                         icon: "camera.rotate.fill",
                         color: Color(white: 0.25),
-                        size: 60
+                        size: 54
                     ) {
                         // No-op in mock
                     }
@@ -158,7 +211,7 @@ struct MockVideoCallView: View {
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             if remaining > 0 {
                 remaining -= 1
-                if remaining == 0 { hangup() }
+                if remaining == 0 { endCall() }
             }
         }
         .onAppear {
@@ -191,7 +244,7 @@ struct MockVideoCallView: View {
         }
     }
 
-    private func hangup() {
+    private func endCall() {
         showFeedback = true
     }
 }
