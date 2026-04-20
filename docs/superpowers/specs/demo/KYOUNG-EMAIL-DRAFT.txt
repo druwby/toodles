@@ -1,0 +1,21 @@
+Subject: CPSC 491 — Group 01 team name
+
+Hi Kyoung,
+
+Quick update on our capstone: our team (Group 01) would like to register our group name as
+
+    ToodlesDev
+
+for the presentation schedule posted for Tuesday 2026-04-21 at 7:00 PM PT. The schedule currently lists us as "Pending."
+
+Team composition:
+- Danny Shtansky — iOS Lead / Product Manager
+- Vincent Polanco — Backend / Trust Gate
+- Chaitanya Talluri — Trust Score System
+
+Our project is Toodles, a spontaneous 60-second video-dating iOS app built on SwiftUI, Firebase, and Daily.co.
+
+Thanks,
+Danny Shtansky
+dshtansky0@csu.fullerton.edu
+CPSC 491, Group 01

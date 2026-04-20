@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Toodles — Matching Pipeline</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0a0a0a; color: #fafafa;
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    overflow: hidden; }
+  .slide {
+    width: 100vw; height: 100vh;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    text-align: center; padding: 6rem;
+  }
+  .accent {
+    color: #ff6b6b; font-size: 2.2rem; font-weight: 300;
+    letter-spacing: 0.3rem; text-transform: uppercase;
+    margin-bottom: 3.5rem;
+  }
+  .pipeline {
+    display: flex; align-items: center; gap: 2.5rem;
+    font-weight: 300;
+  }
+  .step {
+    background: rgba(255, 107, 107, 0.08);
+    border: 1px solid #ff6b6b;
+    padding: 1.5rem 2.5rem;
+    border-radius: 12px;
+    font-size: 2.4rem;
+  }
+  .arrow {
+    color: #ff6b6b; font-size: 3.2rem; font-weight: 100;
+  }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="accent">Matching Pipeline</div>
+  <div class="pipeline">
+    <div class="step">Trust Gate</div>
+    <div class="arrow">→</div>
+    <div class="step">Cloud Function</div>
+    <div class="arrow">→</div>
+    <div class="step">Daily.co Room Token</div>
+  </div>
+</div>
+</body>
+</html>
