@@ -230,10 +230,23 @@ struct MatchesListView: View {
                 Text(row.otherName)
                     .font(.body.bold())
                     .foregroundStyle(.black)
-                if let sub = row.subtitle {
+                // Prefer last-message preview (if this chat has any messages
+                // yet) over the year/major subtitle. Makes Matches behave
+                // like a unified connections tab, replacing the old separate
+                // Chats tab.
+                if let preview = lastMessagePreview(for: row.id, otherName: row.otherName) {
+                    Text(preview)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                        .lineLimit(1)
+                } else if let sub = row.subtitle {
                     Text(sub)
                         .font(.caption)
                         .foregroundStyle(.gray)
+                } else {
+                    Text("New match — say hi!")
+                        .font(.caption.italic())
+                        .foregroundStyle(Color(red: 0.96, green: 0.35, blue: 0.55))
                 }
                 Text(timeAgoString(row.timestamp))
                     .font(.caption2)
@@ -245,6 +258,20 @@ struct MatchesListView: View {
         .padding(12)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// Pull the last scripted message for a known demo peer so the row shows
+    /// a "Tap to chat" preview like Tinder/Hinge do. Non-demo chats fall back
+    /// to nil and the row shows the subtitle instead.
+    private func lastMessagePreview(for chatId: String, otherName: String) -> String? {
+        // Legacy pre-seeded demo_match_<key> chat ids
+        if chatId.hasPrefix("demo_match_") {
+            return ChatViewModel.demoMessages(for: chatId).last?.text
+        }
+        // Dynamically-created matches where the peer is a known demo peer
+        let key = otherName.components(separatedBy: " ").first?.lowercased() ?? ""
+        let demo = ChatViewModel.demoMessages(for: "demo_match_\(key)")
+        return demo.last?.text
     }
 
     /// Single, unambiguous status pill — replaces the previous icon-row

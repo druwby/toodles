@@ -318,7 +318,7 @@ struct ProfileSetupView: View {
                 .font(.callout.bold())
                 .foregroundStyle(selected ? .white : ToodlesTheme.avatarText)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                .padding(.vertical, 11)
                 .background(
                     selected
                         ? AnyShapeStyle(
@@ -331,12 +331,21 @@ struct ProfileSetupView: View {
                                 endPoint: .trailing
                             )
                         )
-                        : AnyShapeStyle(ToodlesTheme.chipBlue)
+                        // Unselected: a darker chip so the pill is visible on
+                        // the white card. chipBlue is nearly-white and was
+                        // blending into the card surface, making unselected
+                        // pills look "missing".
+                        : AnyShapeStyle(Color(red: 0.90, green: 0.92, blue: 0.97))
                 )
                 .clipShape(Capsule())
                 .overlay(
                     Capsule()
-                        .stroke(selected ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1)
+                        .stroke(
+                            selected
+                                ? Color.white.opacity(0.6)
+                                : ToodlesTheme.avatarText.opacity(0.25),
+                            lineWidth: 1
+                        )
                 )
                 .scaleEffect(selected ? 1.03 : 1.0)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)

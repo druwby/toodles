@@ -32,15 +32,15 @@ struct MainTabView: View {
     }
 
     var body: some View {
+        // Chats tab removed — it duplicated Matches now that we hide
+        // rejected/reported rows. Matches is the unified connections tab
+        // that shows message previews and opens the chat on tap.
         TabView {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house.fill") }
 
             MatchesListView()
                 .tabItem { Label("Matches", systemImage: "heart.fill") }
-
-            ChatListView()
-                .tabItem { Label("Chats", systemImage: "message.fill") }
 
             ProfileView()
                 .tabItem { Label("Profile", systemImage: "person.fill") }
