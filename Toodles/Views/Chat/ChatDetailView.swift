@@ -16,9 +16,6 @@ final class ChatViewModel: ObservableObject {
     init(chatId: String) { self.chatId = chatId }
 
     func start() {
-        // Demo chats (seeded by MatchesViewModel.demoMatches) are served from a
-        // static script rather than Firestore — keeps the presentation self-contained
-        // and survives network quirks during the Zoom demo.
         if chatId.hasPrefix("demo_match_") {
             self.messages = Self.demoMessages(for: chatId)
             return
@@ -47,7 +44,6 @@ final class ChatViewModel: ObservableObject {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
 
-        // For demo chats, append locally instead of writing to Firestore.
         if chatId.hasPrefix("demo_match_") {
             let msg = ChatMessage(
                 id: UUID().uuidString,
@@ -62,9 +58,6 @@ final class ChatViewModel: ObservableObject {
         FirestoreService.shared.sendMessage(chatId: chatId, senderId: senderId, text: t)
     }
 
-    /// Pre-scripted message threads for the 4 demo girl matches. `me` is whoever is
-    /// currently signed in; `her` is the demo match id so the right-left alignment
-    /// in `messageBubble` lines up correctly.
     static func demoMessages(for chatId: String) -> [ChatMessage] {
         let me = AuthManager.shared.currentUID ?? "me"
         let now = Date()
@@ -75,33 +68,33 @@ final class ChatViewModel: ObservableObject {
         switch chatId {
         case "demo_match_emma":
             return [
-                ChatMessage(id: "m1", senderId: chatId, text: "Your 60 seconds flew by 😄",              sentAt: at(14)),
-                ChatMessage(id: "m2", senderId: me,     text: "Right?? Way less awkward than I expected", sentAt: at(13)),
+                ChatMessage(id: "m1", senderId: chatId, text: "Your 60 seconds flew by 😄",                                            sentAt: at(14)),
+                ChatMessage(id: "m2", senderId: me,     text: "Right?? Way less awkward than I expected",                             sentAt: at(13)),
                 ChatMessage(id: "m3", senderId: chatId, text: "What was your bachelor project again? Something about trust scores?", sentAt: at(11)),
-                ChatMessage(id: "m4", senderId: me,     text: "Yeah! Capstone demo is tomorrow actually",  sentAt: at(10)),
-                ChatMessage(id: "m5", senderId: chatId, text: "No way, good luck 🫶 coffee after?",       sentAt: at(2)),
+                ChatMessage(id: "m4", senderId: me,     text: "Yeah! Capstone demo is tomorrow actually",                             sentAt: at(10)),
+                ChatMessage(id: "m5", senderId: chatId, text: "No way, good luck 🫶 coffee after?",                                    sentAt: at(2)),
             ]
 
         case "demo_match_sophia":
             return [
-                ChatMessage(id: "m1", senderId: me,     text: "That was fun — your major is business right?", sentAt: at(118)),
+                ChatMessage(id: "m1", senderId: me,     text: "That was fun — your major is business right?",     sentAt: at(118)),
                 ChatMessage(id: "m2", senderId: chatId, text: "Yep, management concentration. You mentioned CS?", sentAt: at(115)),
-                ChatMessage(id: "m3", senderId: me,     text: "Guilty. Mostly iOS stuff lately",              sentAt: at(112)),
+                ChatMessage(id: "m3", senderId: me,     text: "Guilty. Mostly iOS stuff lately",                  sentAt: at(112)),
                 ChatMessage(id: "m4", senderId: chatId, text: "Would love to hear more over food if you're down", sentAt: at(90)),
             ]
 
         case "demo_match_olivia":
             return [
-                ChatMessage(id: "m1", senderId: chatId, text: "I loved how you explained what you're building",   sentAt: at(355)),
-                ChatMessage(id: "m2", senderId: me,     text: "Appreciate it. Your art history stuff sounded sick", sentAt: at(350)),
+                ChatMessage(id: "m1", senderId: chatId, text: "I loved how you explained what you're building",       sentAt: at(355)),
+                ChatMessage(id: "m2", senderId: me,     text: "Appreciate it. Your art history stuff sounded sick",   sentAt: at(350)),
                 ChatMessage(id: "m3", senderId: chatId, text: "There's a gallery night on campus Friday, interested?", sentAt: at(340)),
             ]
 
         case "demo_match_mia":
             return [
-                ChatMessage(id: "m1", senderId: me,     text: "Hey! Thanks for the chat yesterday",          sentAt: at(60 * 22)),
-                ChatMessage(id: "m2", senderId: chatId, text: "Same! I'm free next week if you are",         sentAt: at(60 * 21)),
-                ChatMessage(id: "m3", senderId: me,     text: "Wednesday works for me",                      sentAt: at(60 * 10)),
+                ChatMessage(id: "m1", senderId: me,     text: "Hey! Thanks for the chat yesterday",  sentAt: at(60 * 22)),
+                ChatMessage(id: "m2", senderId: chatId, text: "Same! I'm free next week if you are", sentAt: at(60 * 21)),
+                ChatMessage(id: "m3", senderId: me,     text: "Wednesday works for me",              sentAt: at(60 * 10)),
             ]
 
         default:
@@ -113,13 +106,24 @@ final class ChatViewModel: ObservableObject {
 struct ChatDetailView: View {
     let chatId: String
     let otherName: String
+    let otherPhotoUrl: String?
+    let otherSubtitle: String?
     @StateObject private var viewModel: ChatViewModel
     @State private var draft = ""
+    @State private var showOptions = false
+    @State private var toastMessage: String?
     @Environment(\.dismiss) private var dismiss
 
-    init(chatId: String, otherName: String) {
+    init(
+        chatId: String,
+        otherName: String,
+        otherPhotoUrl: String? = nil,
+        otherSubtitle: String? = nil
+    ) {
         self.chatId = chatId
         self.otherName = otherName
+        self.otherPhotoUrl = otherPhotoUrl
+        self.otherSubtitle = otherSubtitle
         _viewModel = StateObject(wrappedValue: ChatViewModel(chatId: chatId))
     }
 
@@ -130,10 +134,11 @@ struct ChatDetailView: View {
                 showBackButton: true,
                 onBack: { dismiss() },
                 trailingIcon: "ellipsis",
+                onTrailing: { showOptions = true },
                 centerContent: AnyView(headerCenter)
             )
 
-            ZStack {
+            ZStack(alignment: .top) {
                 ToodlesTheme.bodyGradient.ignoresSafeArea(edges: .bottom)
 
                 VStack(spacing: 0) {
@@ -147,21 +152,15 @@ struct ChatDetailView: View {
                         .padding(.vertical, 16)
                     }
 
-                    // Input row
                     HStack(spacing: 10) {
                         TextField("Type a message...", text: $draft)
                             .padding(14)
                             .background(Color.white)
                             .clipShape(Capsule())
                         Button {
-                            if let uid = AuthManager.shared.currentUID {
-                                viewModel.send(text: draft, senderId: uid)
-                                draft = ""
-                            } else {
-                                // Demo fallback: allow sending even without auth in DEMO_MODE
-                                viewModel.send(text: draft, senderId: "me")
-                                draft = ""
-                            }
+                            let senderId = AuthManager.shared.currentUID ?? "me"
+                            viewModel.send(text: draft, senderId: senderId)
+                            draft = ""
                         } label: {
                             Image(systemName: "paperplane.fill")
                                 .foregroundStyle(.white)
@@ -174,23 +173,33 @@ struct ChatDetailView: View {
                     .padding(.vertical, 12)
                     .background(ToodlesTheme.bodyBottom)
                 }
+
+                if let toast = toastMessage {
+                    Text(toast)
+                        .font(.callout.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.black.opacity(0.85))
+                        .clipShape(Capsule())
+                        .padding(.top, 12)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
         .onAppear { viewModel.start() }
         .onDisappear { viewModel.stop() }
+        .sheet(isPresented: $showOptions) {
+            optionsSheet
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private var headerCenter: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(ToodlesTheme.avatarBlue)
-                .frame(width: 36, height: 36)
-                .overlay(
-                    Text(String(otherName.prefix(2)).uppercased())
-                        .font(.caption.bold())
-                        .foregroundStyle(ToodlesTheme.avatarText)
-                )
+            PersonAvatar(name: otherName, photoUrl: otherPhotoUrl, size: 36)
             VStack(alignment: .leading, spacing: 0) {
                 Text(otherName)
                     .font(.body.bold())
@@ -224,5 +233,91 @@ struct ChatDetailView: View {
         let f = DateFormatter()
         f.dateFormat = "h:mm a"
         return f.string(from: date)
+    }
+
+    // MARK: - Options sheet (unmatch / report / block, with the person's photo)
+
+    private var optionsSheet: some View {
+        VStack(spacing: 14) {
+            PersonAvatar(name: otherName, photoUrl: otherPhotoUrl, size: 140)
+                .padding(.top, 28)
+
+            Text(otherName)
+                .font(.title2.bold())
+
+            if let sub = otherSubtitle {
+                Text(sub)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider().padding(.vertical, 8)
+
+            VStack(spacing: 10) {
+                sheetAction(icon: "person.crop.circle", title: "View full profile", tint: .primary) {
+                    fireToast("Profile view coming soon")
+                }
+                sheetAction(icon: "heart.slash", title: "Unmatch", tint: .orange) {
+                    fireToast("Unmatched \(otherName)")
+                }
+                sheetAction(icon: "flag", title: "Report", tint: .red) {
+                    fireToast("Reported — moderation team notified")
+                }
+                sheetAction(icon: "nosign", title: "Block", tint: .red) {
+                    fireToast("Blocked \(otherName)")
+                }
+            }
+            .padding(.horizontal, 16)
+
+            Spacer(minLength: 12)
+
+            Button {
+                showOptions = false
+            } label: {
+                Text("Cancel")
+                    .font(.body.bold())
+                    .foregroundStyle(.primary)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.gray.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 18)
+        }
+    }
+
+    private func sheetAction(icon: String, title: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            showOptions = false
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .frame(width: 24)
+                Text(title)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .opacity(0.5)
+            }
+            .foregroundStyle(tint)
+            .font(.body.bold())
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color.gray.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    private func fireToast(_ text: String) {
+        withAnimation(.easeOut(duration: 0.2)) {
+            toastMessage = text
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            withAnimation(.easeIn(duration: 0.25)) {
+                toastMessage = nil
+            }
+        }
     }
 }

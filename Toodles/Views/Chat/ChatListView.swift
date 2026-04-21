@@ -27,7 +27,6 @@ struct ChatListView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
 
-                        // Matched chats
                         let matchedOnly = viewModel.rows
                             .filter { $0.status == "matched" }
                             .filter {
@@ -55,7 +54,12 @@ struct ChatListView: View {
                                 VStack(spacing: 12) {
                                     ForEach(matchedOnly) { row in
                                         NavigationLink {
-                                            ChatDetailView(chatId: row.id, otherName: row.otherName)
+                                            ChatDetailView(
+                                                chatId: row.id,
+                                                otherName: row.otherName,
+                                                otherPhotoUrl: row.photoUrl,
+                                                otherSubtitle: row.subtitle
+                                            )
                                         } label: {
                                             chatCard(row)
                                         }
@@ -76,30 +80,43 @@ struct ChatListView: View {
 
     private func chatCard(_ row: MatchRow) -> some View {
         HStack(spacing: 12) {
-            Circle()
-                .fill(ToodlesTheme.avatarBlue)
-                .frame(width: 44, height: 44)
-                .overlay(
-                    Text(String(row.otherName.prefix(2)).uppercased())
-                        .font(.caption.bold())
-                        .foregroundStyle(ToodlesTheme.avatarText)
-                )
+            PersonAvatar(name: row.otherName, photoUrl: row.photoUrl, size: 52)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.otherName)
                     .font(.body.bold())
                     .foregroundStyle(.black)
-                Text("Tap to chat")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
+                if let preview = lastMessagePreview(for: row.id) {
+                    Text(preview)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                        .lineLimit(1)
+                } else if let sub = row.subtitle {
+                    Text(sub)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                } else {
+                    Text("Tap to chat")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
             }
             Spacer()
             Text(timeAgoShort(row.timestamp))
                 .font(.caption2)
                 .foregroundStyle(.gray)
         }
-        .padding(14)
+        .padding(12)
         .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// For demo chats, show the last-message text so the list feels like a real
+    /// chat index. Falls back to subtitle or "Tap to chat" for non-demo rows.
+    private func lastMessagePreview(for chatId: String) -> String? {
+        guard chatId.hasPrefix("demo_match_") else { return nil }
+        let messages = ChatViewModel.demoMessages(for: chatId)
+        return messages.last?.text
     }
 
     private func timeAgoShort(_ date: Date) -> String {

@@ -8,6 +8,9 @@ struct MatchRow: Identifiable {
     let timestamp: Date
     /// Optional subtitle line shown under the name (year + major). Populated for demo mocks.
     let subtitle: String?
+    /// Optional photo URL. Demo mocks use randomuser.me female portraits;
+    /// real Firestore rows fall back to initials in `PersonAvatar` when nil.
+    let photoUrl: String?
 }
 
 final class MatchesViewModel: ObservableObject {
@@ -16,7 +19,6 @@ final class MatchesViewModel: ObservableObject {
 
     func load() {
         guard let uid = AuthManager.shared.currentUID else {
-            // No auth yet — show demo mocks so the tab isn't empty during demo rehearsal.
             self.rows = Self.demoMatches()
             return
         }
@@ -40,12 +42,19 @@ final class MatchesViewModel: ObservableObject {
                         name = other
                     }
                     let ts = (d["matched_at"] as? Timestamp)?.dateValue() ?? Date()
-                    return MatchRow(id: id, otherName: name, status: status, timestamp: ts, subtitle: nil)
+                    return MatchRow(
+                        id: id,
+                        otherName: name,
+                        status: status,
+                        timestamp: ts,
+                        subtitle: nil,
+                        photoUrl: nil
+                    )
                 }
 
                 // Demo seed: always append the mock girls so the Matches + Chats tabs
-                // have content during the capstone presentation. The real Firestore rows
-                // (if any) show first; demo mocks follow.
+                // have content during the capstone presentation. Firestore rows appear
+                // first; demo mocks follow.
                 self.rows = firestoreRows + Self.demoMatches()
                 self.isLoading = false
             }
@@ -53,8 +62,9 @@ final class MatchesViewModel: ObservableObject {
     }
 
     /// Hand-curated demo matches used in the CPSC 491 capstone presentation.
-    /// Ordered newest-first. IDs intentionally start with `demo_match_` so
-    /// `ChatDetailView` can detect them and serve mock messages without hitting Firestore.
+    /// IDs start with `demo_match_` so `ChatDetailView` can detect them and
+    /// serve mock messages without hitting Firestore. Photos are served from
+    /// randomuser.me — guaranteed-female portraits, free, deterministic.
     static func demoMatches() -> [MatchRow] {
         let now = Date()
         return [
@@ -62,43 +72,49 @@ final class MatchesViewModel: ObservableObject {
                 id: "demo_match_emma",
                 otherName: "Emma Chen",
                 status: "matched",
-                timestamp: now.addingTimeInterval(-15 * 60),          // 15 min ago
-                subtitle: "Junior · Nursing"
+                timestamp: now.addingTimeInterval(-15 * 60),
+                subtitle: "Junior · Nursing",
+                photoUrl: "https://randomuser.me/api/portraits/women/44.jpg"
             ),
             MatchRow(
                 id: "demo_match_sophia",
                 otherName: "Sophia Rodriguez",
                 status: "matched",
-                timestamp: now.addingTimeInterval(-2 * 3600),         // 2 hr ago
-                subtitle: "Sophomore · Business"
+                timestamp: now.addingTimeInterval(-2 * 3600),
+                subtitle: "Sophomore · Business",
+                photoUrl: "https://randomuser.me/api/portraits/women/68.jpg"
             ),
             MatchRow(
                 id: "demo_match_olivia",
                 otherName: "Olivia Kim",
                 status: "matched",
-                timestamp: now.addingTimeInterval(-6 * 3600),         // 6 hr ago
-                subtitle: "Senior · Art History"
+                timestamp: now.addingTimeInterval(-6 * 3600),
+                subtitle: "Senior · Art History",
+                photoUrl: "https://randomuser.me/api/portraits/women/22.jpg"
             ),
             MatchRow(
                 id: "demo_match_mia",
                 otherName: "Mia Patel",
                 status: "matched",
-                timestamp: now.addingTimeInterval(-24 * 3600),        // 1 day ago
-                subtitle: "Senior · Biology"
+                timestamp: now.addingTimeInterval(-24 * 3600),
+                subtitle: "Senior · Biology",
+                photoUrl: "https://randomuser.me/api/portraits/women/90.jpg"
             ),
             MatchRow(
                 id: "demo_match_isabella",
                 otherName: "Isabella Nguyen",
                 status: "rejected",
-                timestamp: now.addingTimeInterval(-2 * 24 * 3600),    // 2 days ago
-                subtitle: "Junior · Psychology"
+                timestamp: now.addingTimeInterval(-2 * 24 * 3600),
+                subtitle: "Junior · Psychology",
+                photoUrl: "https://randomuser.me/api/portraits/women/33.jpg"
             ),
             MatchRow(
                 id: "demo_match_ava",
                 otherName: "Ava Williams",
-                status: "added",
-                timestamp: now.addingTimeInterval(-3 * 24 * 3600),    // 3 days ago
-                subtitle: "Grad · Data Science"
+                status: "reported",
+                timestamp: now.addingTimeInterval(-3 * 24 * 3600),
+                subtitle: "Grad · Data Science",
+                photoUrl: "https://randomuser.me/api/portraits/women/77.jpg"
             ),
         ]
     }
@@ -144,14 +160,8 @@ struct MatchesListView: View {
 
     private func matchCard(_ row: MatchRow) -> some View {
         HStack(spacing: 12) {
-            Circle()
-                .fill(ToodlesTheme.avatarBlue)
-                .frame(width: 48, height: 48)
-                .overlay(
-                    Text(String(row.otherName.prefix(2)).uppercased())
-                        .font(.subheadline.bold())
-                        .foregroundStyle(ToodlesTheme.avatarText)
-                )
+            PersonAvatar(name: row.otherName, photoUrl: row.photoUrl, size: 54)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.otherName)
                     .font(.body.bold())
@@ -166,23 +176,43 @@ struct MatchesListView: View {
                     .foregroundStyle(.gray.opacity(0.8))
             }
             Spacer()
-            statusIcons(for: row.status)
+            statusPill(for: row.status)
         }
-        .padding(14)
+        .padding(12)
         .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private func statusIcons(for status: String) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: "heart.fill")
-                .foregroundStyle(status == "matched" ? .pink : Color.gray.opacity(0.3))
-            Image(systemName: "xmark")
-                .foregroundStyle(status == "rejected" ? .red : Color.gray.opacity(0.3))
-            Image(systemName: "flag")
-                .foregroundStyle(status == "reported" ? .orange : Color.gray.opacity(0.3))
+    /// Single, unambiguous status pill — replaces the previous icon-row
+    /// that could read as empty when a status was "added" or "reported".
+    @ViewBuilder
+    private func statusPill(for status: String) -> some View {
+        switch status {
+        case "matched":
+            pill(icon: "heart.fill", text: "Matched", fg: .white, bg: Color(red: 0.96, green: 0.35, blue: 0.55))
+        case "rejected":
+            pill(icon: "xmark", text: "Passed", fg: .white, bg: Color.gray.opacity(0.7))
+        case "reported":
+            pill(icon: "flag.fill", text: "Reported", fg: .white, bg: Color.red.opacity(0.85))
+        case "added":
+            pill(icon: "clock.arrow.circlepath", text: "Reconnect", fg: .white, bg: ToodlesTheme.headerBlue)
+        default:
+            pill(icon: "circle", text: status.capitalized, fg: .white, bg: Color.gray)
         }
-        .font(.body)
+    }
+
+    private func pill(icon: String, text: String, fg: Color, bg: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2.bold())
+            Text(text)
+                .font(.caption.bold())
+        }
+        .foregroundStyle(fg)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(bg)
+        .clipShape(Capsule())
     }
 
     private func timeAgoString(_ date: Date) -> String {
