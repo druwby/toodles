@@ -16,6 +16,14 @@ final class ChatViewModel: ObservableObject {
     init(chatId: String) { self.chatId = chatId }
 
     func start() {
+        // Demo chats (seeded by MatchesViewModel.demoMatches) are served from a
+        // static script rather than Firestore — keeps the presentation self-contained
+        // and survives network quirks during the Zoom demo.
+        if chatId.hasPrefix("demo_match_") {
+            self.messages = Self.demoMessages(for: chatId)
+            return
+        }
+
         listener?.remove()
         listener = FirestoreService.shared.listenMessages(chatId: chatId) { [weak self] docs in
             DispatchQueue.main.async {
@@ -38,7 +46,67 @@ final class ChatViewModel: ObservableObject {
     func send(text: String, senderId: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
+
+        // For demo chats, append locally instead of writing to Firestore.
+        if chatId.hasPrefix("demo_match_") {
+            let msg = ChatMessage(
+                id: UUID().uuidString,
+                senderId: senderId,
+                text: t,
+                sentAt: Date()
+            )
+            DispatchQueue.main.async { self.messages.append(msg) }
+            return
+        }
+
         FirestoreService.shared.sendMessage(chatId: chatId, senderId: senderId, text: t)
+    }
+
+    /// Pre-scripted message threads for the 4 demo girl matches. `me` is whoever is
+    /// currently signed in; `her` is the demo match id so the right-left alignment
+    /// in `messageBubble` lines up correctly.
+    static func demoMessages(for chatId: String) -> [ChatMessage] {
+        let me = AuthManager.shared.currentUID ?? "me"
+        let now = Date()
+        func at(_ minutesAgo: Double) -> Date {
+            now.addingTimeInterval(-minutesAgo * 60)
+        }
+
+        switch chatId {
+        case "demo_match_emma":
+            return [
+                ChatMessage(id: "m1", senderId: chatId, text: "Your 60 seconds flew by 😄",              sentAt: at(14)),
+                ChatMessage(id: "m2", senderId: me,     text: "Right?? Way less awkward than I expected", sentAt: at(13)),
+                ChatMessage(id: "m3", senderId: chatId, text: "What was your bachelor project again? Something about trust scores?", sentAt: at(11)),
+                ChatMessage(id: "m4", senderId: me,     text: "Yeah! Capstone demo is tomorrow actually",  sentAt: at(10)),
+                ChatMessage(id: "m5", senderId: chatId, text: "No way, good luck 🫶 coffee after?",       sentAt: at(2)),
+            ]
+
+        case "demo_match_sophia":
+            return [
+                ChatMessage(id: "m1", senderId: me,     text: "That was fun — your major is business right?", sentAt: at(118)),
+                ChatMessage(id: "m2", senderId: chatId, text: "Yep, management concentration. You mentioned CS?", sentAt: at(115)),
+                ChatMessage(id: "m3", senderId: me,     text: "Guilty. Mostly iOS stuff lately",              sentAt: at(112)),
+                ChatMessage(id: "m4", senderId: chatId, text: "Would love to hear more over food if you're down", sentAt: at(90)),
+            ]
+
+        case "demo_match_olivia":
+            return [
+                ChatMessage(id: "m1", senderId: chatId, text: "I loved how you explained what you're building",   sentAt: at(355)),
+                ChatMessage(id: "m2", senderId: me,     text: "Appreciate it. Your art history stuff sounded sick", sentAt: at(350)),
+                ChatMessage(id: "m3", senderId: chatId, text: "There's a gallery night on campus Friday, interested?", sentAt: at(340)),
+            ]
+
+        case "demo_match_mia":
+            return [
+                ChatMessage(id: "m1", senderId: me,     text: "Hey! Thanks for the chat yesterday",          sentAt: at(60 * 22)),
+                ChatMessage(id: "m2", senderId: chatId, text: "Same! I'm free next week if you are",         sentAt: at(60 * 21)),
+                ChatMessage(id: "m3", senderId: me,     text: "Wednesday works for me",                      sentAt: at(60 * 10)),
+            ]
+
+        default:
+            return []
+        }
     }
 }
 
@@ -89,6 +157,10 @@ struct ChatDetailView: View {
                             if let uid = AuthManager.shared.currentUID {
                                 viewModel.send(text: draft, senderId: uid)
                                 draft = ""
+                            } else {
+                                // Demo fallback: allow sending even without auth in DEMO_MODE
+                                viewModel.send(text: draft, senderId: "me")
+                                draft = ""
                             }
                         } label: {
                             Image(systemName: "paperplane.fill")
@@ -108,8 +180,6 @@ struct ChatDetailView: View {
         .onAppear { viewModel.start() }
         .onDisappear { viewModel.stop() }
     }
-
-    // MARK: - Header center (avatar + name + online status)
 
     private var headerCenter: some View {
         HStack(spacing: 8) {
@@ -132,11 +202,10 @@ struct ChatDetailView: View {
         }
     }
 
-    // MARK: - Message bubble (light blue on both sides per Figma)
-
     @ViewBuilder
     private func messageBubble(_ msg: ChatMessage) -> some View {
-        let isMe = msg.senderId == AuthManager.shared.currentUID
+        let myId = AuthManager.shared.currentUID ?? "me"
+        let isMe = msg.senderId == myId
         VStack(alignment: isMe ? .trailing : .leading, spacing: 4) {
             Text(msg.text)
                 .padding(.horizontal, 14)
