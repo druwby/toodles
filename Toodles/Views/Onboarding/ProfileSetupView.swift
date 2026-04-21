@@ -236,14 +236,20 @@ struct ProfileSetupView: View {
                         .font(.caption2)
                         .foregroundStyle(.gray)
                 }
-                TextEditor(text: $bio)
-                    .foregroundStyle(.black)
-                    .tint(.black)
-                    .frame(height: 54)
-                    .padding(6)
-                    .background(Color(white: 0.97))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .scrollContentBackground(.hidden)
+                // iOS 17 multi-line TextField — doesn't steal scroll gestures
+                // from the outer ScrollView the way TextEditor does.
+                TextField(
+                    "",
+                    text: $bio,
+                    prompt: Text("Tell us a bit about yourself…").foregroundStyle(.gray),
+                    axis: .vertical
+                )
+                .lineLimit(3...5)
+                .foregroundStyle(.black)
+                .tint(.black)
+                .padding(10)
+                .background(Color(white: 0.97))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
                 Text("\(bio.count)/200 characters")
                     .font(.caption2)
                     .foregroundStyle(.gray)

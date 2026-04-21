@@ -56,6 +56,10 @@ struct AmbientOrbBackground: View {
             )
             .ignoresSafeArea()
         }
+        // Never absorb gestures — otherwise ScrollViews on top of the ambient
+        // background lose their scroll and tap events on setups that layer
+        // the background inside a ZStack.
+        .allowsHitTesting(false)
         .onAppear {
             withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) {
                 orb1Offset = CGSize(width: 100, height: -60)

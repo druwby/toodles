@@ -33,14 +33,18 @@ struct SupportView: View {
                                     .padding(12)
                                     .background(Color.white)
                                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                                TextEditor(text: $description)
-                                    .foregroundStyle(.black)
-                                    .tint(.black)
-                                    .frame(height: 120)
-                                    .padding(8)
-                                    .background(Color.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    .scrollContentBackground(.hidden)
+                                TextField(
+                                    "",
+                                    text: $description,
+                                    prompt: Text("Describe your issue or feedback…").foregroundStyle(.gray),
+                                    axis: .vertical
+                                )
+                                .lineLimit(4...8)
+                                .foregroundStyle(.black)
+                                .tint(.black)
+                                .padding(10)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
                                 Button("Submit") { submit() }
                                     .buttonStyle(ToodlesPrimaryButtonStyle())
                                     .disabled(subject.isEmpty || description.isEmpty)

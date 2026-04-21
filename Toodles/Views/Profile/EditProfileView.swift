@@ -149,14 +149,18 @@ struct EditProfileView: View {
                 Text("Bio")
                     .font(.caption.bold())
                     .foregroundStyle(.black)
-                TextEditor(text: $bio)
-                    .foregroundStyle(.black)
-                    .tint(.black)
-                    .frame(height: 80)
-                    .padding(6)
-                    .background(Color(white: 0.97))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .scrollContentBackground(.hidden)
+                TextField(
+                    "",
+                    text: $bio,
+                    prompt: Text("Tell us a bit about yourself…").foregroundStyle(.gray),
+                    axis: .vertical
+                )
+                .lineLimit(3...6)
+                .foregroundStyle(.black)
+                .tint(.black)
+                .padding(10)
+                .background(Color(white: 0.97))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
                 Text("\(bio.count)/200 characters")
                     .font(.caption2)
                     .foregroundStyle(.gray)
