@@ -8,62 +8,107 @@ import PhotosUI
 struct ProfileSetupView: View {
     @EnvironmentObject var userViewModel: UserViewModel
 
-    @State private var displayName: String = ""
+    @State private var firstName: String = ""
+    @State private var lastName: String = ""
     @State private var bio: String = ""
-    @State private var interests: [String] = []
-    @State private var newInterest: String = ""
+    @State private var selectedInterests: Set<String> = []
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var pickedImage: UIImage?
     @State private var isSaving = false
     @State private var errorMessage: String?
+
+    private static let maxInterests = 5
+
+    /// Curated interest pool — the tags Hinge/Tinder-style apps surface for
+    /// college-aged users. Kept flat (no categories) for a cleaner grid; ~22
+    /// options covers the breadth without overwhelming the user.
+    private static let interestPool: [InterestTag] = [
+        .init(name: "Coffee",         emoji: "☕️"),
+        .init(name: "Hiking",         emoji: "🥾"),
+        .init(name: "Hot yoga",       emoji: "🧘‍♀️"),
+        .init(name: "Concerts",       emoji: "🎤"),
+        .init(name: "Gaming",         emoji: "🎮"),
+        .init(name: "Anime",          emoji: "🎴"),
+        .init(name: "Boba",           emoji: "🧋"),
+        .init(name: "Cooking",        emoji: "🍳"),
+        .init(name: "Movies",         emoji: "🎬"),
+        .init(name: "Reading",        emoji: "📚"),
+        .init(name: "Travel",         emoji: "✈️"),
+        .init(name: "Photography",    emoji: "📸"),
+        .init(name: "Dancing",        emoji: "💃"),
+        .init(name: "Surfing",        emoji: "🏄"),
+        .init(name: "Art galleries",  emoji: "🎨"),
+        .init(name: "Podcasts",       emoji: "🎙️"),
+        .init(name: "Board games",    emoji: "🎲"),
+        .init(name: "Beach days",     emoji: "🏖️"),
+        .init(name: "Running",        emoji: "🏃"),
+        .init(name: "Thrifting",      emoji: "🛍️"),
+        .init(name: "Food trucks",    emoji: "🌮"),
+        .init(name: "Working out",    emoji: "🏋️"),
+    ]
 
     private var photoIsSet: Bool {
         pickedImage != nil ||
         !(userViewModel.currentUser?.profilePhotoUrl ?? "").isEmpty
     }
 
+    private var firstNameFilled: Bool {
+        !firstName.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var lastNameFilled: Bool {
+        !lastName.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var canContinue: Bool {
+        photoIsSet && firstNameFilled && lastNameFilled && !isSaving
+    }
+
     var body: some View {
         ZStack {
             AmbientOrbBackground(intensity: .heavy)
 
-            ScrollView {
-                VStack(spacing: 22) {
-                    header
-                        .padding(.top, 60)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        header
+                            .padding(.top, 50)
 
-                    photoPicker
-                        .padding(.top, 4)
+                        photoPicker
+                            .padding(.top, 4)
 
-                    Text("Tap to add a photo of yourself")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.85))
+                        Text("Tap to add a photo of yourself")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.85))
 
-                    formCard
+                        formCard
 
-                    if let err = errorMessage {
-                        Text(err)
-                            .foregroundStyle(.red)
-                            .font(.callout)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
+                        interestCard
+
+                        if let err = errorMessage {
+                            Text(err)
+                                .foregroundStyle(.white)
+                                .font(.callout)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(Color.red.opacity(0.85))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .padding(.horizontal, 20)
+                        }
+
+                        whyCopy
+                            .padding(.top, 4)
+                            .padding(.bottom, 16)
                     }
-
-                    continueButton
-                        .padding(.top, 8)
-
-                    whyCopy
-                        .padding(.top, 4)
-                        .padding(.bottom, 32)
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, 20)
+
+                // Pinned Continue button — always visible regardless of scroll position
+                continueBar
             }
         }
         .onAppear {
-            if let u = userViewModel.currentUser {
-                displayName = u.displayName
-                bio = u.bio
-                interests = u.interests
-            }
+            hydrateFromExistingUser()
         }
         .onChange(of: selectedPhotoItem) { _, newItem in
             Task {
@@ -83,7 +128,7 @@ struct ProfileSetupView: View {
                 .font(.system(size: 50))
                 .foregroundStyle(.white)
             Text("One last thing")
-                .font(.title.bold())
+                .font(.system(size: 30, weight: .black))
                 .foregroundStyle(.white)
             Text("Toodles only shows you to other verified CSUF students — which means we need a photo of you first.")
                 .font(.subheadline)
@@ -142,21 +187,35 @@ struct ProfileSetupView: View {
         }
     }
 
-    // MARK: - Form card
+    // MARK: - Form card (first name / last name / bio)
 
     private var formCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Display name")
-                    .font(.caption.bold())
-                    .foregroundStyle(.black)
-                TextField("What should we call you?", text: $displayName)
-                    .foregroundStyle(.black)
-                    .tint(.black)
-                    .padding(10)
-                    .background(Color(white: 0.97))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .textContentType(.name)
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("First name")
+                        .font(.caption.bold())
+                        .foregroundStyle(.black)
+                    TextField("First", text: $firstName)
+                        .foregroundStyle(.black)
+                        .tint(.black)
+                        .textContentType(.givenName)
+                        .padding(10)
+                        .background(Color(white: 0.97))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Last name")
+                        .font(.caption.bold())
+                        .foregroundStyle(.black)
+                    TextField("Last", text: $lastName)
+                        .foregroundStyle(.black)
+                        .tint(.black)
+                        .textContentType(.familyName)
+                        .padding(10)
+                        .background(Color(white: 0.97))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -181,119 +240,124 @@ struct ProfileSetupView: View {
                     .font(.caption2)
                     .foregroundStyle(.gray)
             }
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Interests")
-                        .font(.caption.bold())
-                        .foregroundStyle(.black)
-                    Spacer()
-                    Text("Optional")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                }
-                HStack(spacing: 8) {
-                    TextField("Add an interest", text: $newInterest)
-                        .foregroundStyle(.black)
-                        .tint(.black)
-                        .padding(10)
-                        .background(Color(white: 0.97))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    Button("Add") {
-                        let t = newInterest.trimmingCharacters(in: .whitespaces)
-                        if !t.isEmpty && !interests.contains(t) && interests.count < 8 {
-                            interests.append(t)
-                            newInterest = ""
-                        }
-                    }
-                    .font(.callout.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(ToodlesTheme.bodyTop)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .disabled(newInterest.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-
-                if !interests.isEmpty {
-                    interestChips
-                }
-            }
         }
         .padding(14)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private var interestChips: some View {
-        // Simple wrap layout — uses FlowLayout if you've added it elsewhere.
-        let rows = interests.chunked(into: 3)
-        return VStack(alignment: .leading, spacing: 6) {
-            ForEach(0..<rows.count, id: \.self) { i in
-                HStack(spacing: 6) {
-                    ForEach(rows[i], id: \.self) { interest in
-                        HStack(spacing: 4) {
-                            Text(interest)
-                                .font(.caption)
-                            Image(systemName: "xmark")
-                                .font(.caption2)
-                        }
-                        .foregroundStyle(ToodlesTheme.avatarText)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(ToodlesTheme.chipBlue)
-                        .clipShape(Capsule())
-                        .onTapGesture {
-                            interests.removeAll { $0 == interest }
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
+    // MARK: - Interest selection (Hinge/Tinder-style tag grid)
+
+    private var interestCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Interests")
+                    .font(.caption.bold())
+                    .foregroundStyle(.black)
+                Spacer()
+                Text("\(selectedInterests.count)/\(Self.maxInterests)")
+                    .font(.caption.bold())
+                    .foregroundStyle(
+                        selectedInterests.count == Self.maxInterests
+                            ? ToodlesTheme.accent
+                            : .gray
+                    )
             }
+
+            Text("Pick up to \(Self.maxInterests) things you're into.")
+                .font(.caption2)
+                .foregroundStyle(.gray)
+
+            InterestTagGrid(
+                pool: Self.interestPool,
+                selected: $selectedInterests,
+                max: Self.maxInterests
+            )
         }
+        .padding(14)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    // MARK: - Continue button
+    // MARK: - Continue bar (pinned)
 
-    private var continueButton: some View {
-        Button {
-            save()
-        } label: {
-            HStack(spacing: 10) {
-                if isSaving {
-                    ProgressView().tint(.white)
-                } else {
-                    Text("Continue")
-                        .font(.title3.bold())
-                    Image(systemName: "arrow.right")
+    private var continueBar: some View {
+        VStack(spacing: 0) {
+            Button {
+                save()
+            } label: {
+                HStack(spacing: 10) {
+                    if isSaving {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Continue")
+                            .font(.title3.bold())
+                        Image(systemName: "arrow.right")
+                    }
                 }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: 54)
+                .background(
+                    canContinue
+                        ? AnyShapeStyle(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.98, green: 0.58, blue: 0.12),
+                                    Color(red: 0.98, green: 0.42, blue: 0.40)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        : AnyShapeStyle(Color.gray.opacity(0.5))
+                )
+                .clipShape(Capsule())
+                .shadow(color: (canContinue ? Color(red: 0.98, green: 0.45, blue: 0.30) : .clear).opacity(0.5), radius: 14, y: 6)
             }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: 54)
-            .background(photoIsSet ? ToodlesTheme.accent : Color.gray.opacity(0.5))
-            .clipShape(Capsule())
-            .shadow(color: (photoIsSet ? ToodlesTheme.accent : Color.clear).opacity(0.5), radius: 10, y: 4)
+            .disabled(!canContinue)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
         }
-        .disabled(!photoIsSet || isSaving)
+        .background(
+            LinearGradient(
+                colors: [Color.black.opacity(0), Color.black.opacity(0.25)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .allowsHitTesting(false)
+        )
     }
 
     private var whyCopy: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: "lock.shield.fill")
                     .font(.caption)
-                Text("Photo required · bio and interests can be added later")
+                Text("Photo + name required · bio and interests can be added later")
                     .font(.caption)
             }
             .foregroundStyle(.white.opacity(0.8))
-            Text("Your photo is visible only to other verified CSUF students.")
+            Text("Your photo is only visible to other verified CSUF students.")
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
         }
     }
 
-    // MARK: - Save
+    // MARK: - Data hydration + save
+
+    private func hydrateFromExistingUser() {
+        guard let u = userViewModel.currentUser else { return }
+
+        // Split an existing display name on first space so re-visits don't lose state.
+        let parts = u.displayName.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+        if firstName.isEmpty, let f = parts.first { firstName = String(f) }
+        if lastName.isEmpty,  parts.count > 1 { lastName = String(parts[1]) }
+        if bio.isEmpty { bio = u.bio }
+        if selectedInterests.isEmpty {
+            selectedInterests = Set(u.interests)
+        }
+    }
 
     private func save() {
         guard let uid = AuthManager.shared.currentUID else {
@@ -304,14 +368,22 @@ struct ProfileSetupView: View {
             errorMessage = "Please add a profile photo to continue."
             return
         }
+        guard firstNameFilled && lastNameFilled else {
+            errorMessage = "Please enter your first and last name."
+            return
+        }
         isSaving = true
         errorMessage = nil
 
+        let fullName = "\(firstName.trimmingCharacters(in: .whitespaces)) \(lastName.trimmingCharacters(in: .whitespaces))"
+
         let persistProfile: (String?) -> Void = { photoUrl in
             var data: [String: Any] = [
-                "display_name": displayName,
-                "bio": String(bio.prefix(200)),
-                "interests": interests
+                "display_name": fullName,
+                "first_name":   firstName.trimmingCharacters(in: .whitespaces),
+                "last_name":    lastName.trimmingCharacters(in: .whitespaces),
+                "bio":          String(bio.prefix(200)),
+                "interests":    Array(selectedInterests)
             ]
             if let url = photoUrl { data["profile_photo_url"] = url }
             FirestoreService.shared.updateUser(uid: uid, data: data) { err in
@@ -340,18 +412,114 @@ struct ProfileSetupView: View {
                 }
             }
         } else {
-            // User's existing Firestore profile already has a photo URL — just
-            // persist whatever name/bio/interests they filled.
             persistProfile(nil)
         }
     }
 }
 
-// Local chunked helper — ProfileSetupView is self-contained.
-private extension Array {
-    func chunked(into size: Int) -> [[Element]] {
-        stride(from: 0, to: count, by: size).map {
-            Array(self[$0..<Swift.min($0 + size, count)])
+// MARK: - InterestTag + grid
+
+struct InterestTag: Hashable {
+    let name: String
+    let emoji: String
+}
+
+/// Two-column flowing grid of selectable interest tags. Mirrors the Hinge/Tinder
+/// pattern — tap to toggle, hits the max, disables further adds.
+private struct InterestTagGrid: View {
+    let pool: [InterestTag]
+    @Binding var selected: Set<String>
+    let max: Int
+
+    var body: some View {
+        FlowLayout(spacing: 8) {
+            ForEach(pool, id: \.self) { tag in
+                let isSelected = selected.contains(tag.name)
+                let atCap = selected.count >= max && !isSelected
+                Button {
+                    if isSelected {
+                        selected.remove(tag.name)
+                    } else if !atCap {
+                        selected.insert(tag.name)
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Text(tag.emoji)
+                        Text(tag.name)
+                            .font(.caption.bold())
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .foregroundStyle(isSelected ? .white : ToodlesTheme.avatarText)
+                    .background(
+                        isSelected
+                            ? AnyShapeStyle(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.98, green: 0.58, blue: 0.12),
+                                        Color(red: 0.98, green: 0.42, blue: 0.40)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            : AnyShapeStyle(ToodlesTheme.chipBlue)
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(isSelected ? Color.white.opacity(0.6) : Color.clear, lineWidth: 1)
+                    )
+                    .clipShape(Capsule())
+                    .opacity(atCap ? 0.4 : 1.0)
+                    .scaleEffect(isSelected ? 1.04 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+                }
+                .disabled(atCap)
+            }
+        }
+    }
+}
+
+/// Simple wrapping layout for the interest chips.
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var currentRowWidth: CGFloat = 0
+        var rowMaxHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentRowWidth + size.width > maxWidth {
+                totalHeight += rowMaxHeight + spacing
+                currentRowWidth = size.width + spacing
+                rowMaxHeight = size.height
+            } else {
+                currentRowWidth += size.width + spacing
+                rowMaxHeight = Swift.max(rowMaxHeight, size.height)
+            }
+        }
+        totalHeight += rowMaxHeight
+        return CGSize(width: maxWidth == .infinity ? currentRowWidth : maxWidth, height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = Swift.max(rowHeight, size.height)
         }
     }
 }
