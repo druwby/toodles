@@ -23,7 +23,7 @@ struct EditProfileView: View {
             )
 
             ZStack {
-                ToodlesTheme.bodyGradient.ignoresSafeArea(edges: .bottom)
+                AmbientOrbBackground(intensity: .soft)
 
                 VStack(spacing: 0) {
                     ScrollView {

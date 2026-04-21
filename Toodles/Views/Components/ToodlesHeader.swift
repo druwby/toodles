@@ -58,6 +58,19 @@ struct ToodlesHeader: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity)
-        .background(ToodlesTheme.headerBlue.ignoresSafeArea(edges: .top))
+        // Dark-gradient header so the bar blends into the AmbientOrbBackground
+        // used by the rest of the app. Previously solid blue, which clashed
+        // with the dark Home / Signup / Profile aesthetic.
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.04, green: 0.05, blue: 0.16),
+                    Color(red: 0.09, green: 0.09, blue: 0.24)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea(edges: .top)
+        )
     }
 }

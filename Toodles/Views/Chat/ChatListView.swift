@@ -10,7 +10,7 @@ struct ChatListView: View {
                 ToodlesHeader(title: "Chats")
 
                 ZStack {
-                    ToodlesTheme.bodyGradient.ignoresSafeArea(edges: .bottom)
+                    AmbientOrbBackground(intensity: .soft)
 
                     VStack(spacing: 0) {
                         // Search bar

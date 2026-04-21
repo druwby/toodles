@@ -21,5 +21,15 @@ struct MainTabView: View {
                 .tabItem { Label("Support", systemImage: "questionmark.circle.fill") }
         }
         .tint(ToodlesTheme.accent)
+        // Force the tab bar to use the dark-ambient palette so inactive icons
+        // are legible against the AmbientOrbBackground. Without this the tab
+        // bar picks up the system background and the gray inactive icons
+        // disappear on the dark gradient.
+        .toolbarBackground(
+            Color(red: 0.04, green: 0.05, blue: 0.16),
+            for: .tabBar
+        )
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarColorScheme(.dark, for: .tabBar)
     }
 }

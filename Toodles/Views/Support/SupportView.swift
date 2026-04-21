@@ -11,7 +11,7 @@ struct SupportView: View {
             ToodlesHeader(title: "Customer Support")
 
             ZStack {
-                ToodlesTheme.bodyGradient.ignoresSafeArea(edges: .bottom)
+                AmbientOrbBackground(intensity: .soft)
 
                 ScrollView {
                     VStack(spacing: 14) {

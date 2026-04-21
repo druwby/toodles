@@ -35,7 +35,7 @@ struct ProfileView: View {
                 ToodlesHeader(title: "Profile")
 
                 ZStack {
-                    ToodlesTheme.bodyGradient.ignoresSafeArea(edges: .bottom)
+                    AmbientOrbBackground(intensity: .soft)
 
                     ScrollView {
                         VStack(spacing: 20) {

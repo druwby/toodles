@@ -123,37 +123,57 @@ final class MatchesViewModel: ObservableObject {
 struct MatchesListView: View {
     @StateObject private var viewModel = MatchesViewModel()
 
+    /// Only show matches worth engaging with. "Rejected" (Passed) rows are hidden
+    /// — a user who passed on someone doesn't need to see them in the Matches tab.
+    /// Keeps the list focused and avoids clutter.
+    private var visibleRows: [MatchRow] {
+        viewModel.rows.filter { $0.status != "rejected" }
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            ToodlesHeader(title: "Matches")
+        NavigationStack {
+            VStack(spacing: 0) {
+                ToodlesHeader(title: "Matches")
 
-            ZStack {
-                ToodlesTheme.bodyGradient.ignoresSafeArea(edges: .bottom)
+                ZStack {
+                    AmbientOrbBackground(intensity: .soft)
 
-                if viewModel.isLoading {
-                    ProgressView().tint(.white)
-                } else if viewModel.rows.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "heart.slash")
-                            .font(.system(size: 44))
-                            .foregroundStyle(.white.opacity(0.8))
-                        Text("No matches yet")
-                            .foregroundStyle(.white)
-                            .font(.title3.bold())
-                        Text("Tap Start Chatting on the Home tab!")
-                            .foregroundStyle(.white.opacity(0.75))
-                    }
-                } else {
-                    ScrollView {
+                    if viewModel.isLoading {
+                        ProgressView().tint(.white)
+                    } else if visibleRows.isEmpty {
                         VStack(spacing: 12) {
-                            ForEach(viewModel.rows) { row in
-                                matchCard(row)
-                            }
+                            Image(systemName: "heart.slash")
+                                .font(.system(size: 44))
+                                .foregroundStyle(.white.opacity(0.8))
+                            Text("No matches yet")
+                                .foregroundStyle(.white)
+                                .font(.title3.bold())
+                            Text("Tap Start Chatting on the Home tab!")
+                                .foregroundStyle(.white.opacity(0.75))
                         }
-                        .padding(16)
+                    } else {
+                        ScrollView {
+                            VStack(spacing: 12) {
+                                ForEach(visibleRows) { row in
+                                    NavigationLink {
+                                        ChatDetailView(
+                                            chatId: row.id,
+                                            otherName: row.otherName,
+                                            otherPhotoUrl: row.photoUrl,
+                                            otherSubtitle: row.subtitle
+                                        )
+                                    } label: {
+                                        matchCard(row)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(16)
+                        }
                     }
                 }
             }
+            .toolbar(.hidden, for: .navigationBar)
         }
         .onAppear { viewModel.load() }
     }

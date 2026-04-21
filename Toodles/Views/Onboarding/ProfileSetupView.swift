@@ -103,6 +103,10 @@ struct ProfileSetupView: View {
                     .padding(.horizontal, 20)
                 }
 
+                // Live requirements checklist — always visible so the user knows
+                // exactly what's blocking Continue before they tap it.
+                requirementsStrip
+
                 // Pinned Continue button — always visible regardless of scroll position
                 continueBar
             }
@@ -277,6 +281,31 @@ struct ProfileSetupView: View {
         .padding(14)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    // MARK: - Requirements strip (pinned above Continue)
+
+    private var requirementsStrip: some View {
+        HStack(spacing: 10) {
+            Spacer(minLength: 0)
+            requirementCheck(met: photoIsSet,      label: "Photo")
+            requirementCheck(met: firstNameFilled, label: "First name")
+            requirementCheck(met: lastNameFilled,  label: "Last name")
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 8)
+        .background(Color.black.opacity(0.35))
+    }
+
+    private func requirementCheck(met: Bool, label: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: met ? "checkmark.circle.fill" : "circle")
+                .font(.caption.bold())
+                .foregroundStyle(met ? .green : .white.opacity(0.55))
+            Text(label)
+                .font(.caption.bold())
+                .foregroundStyle(met ? .green : .white.opacity(0.9))
+        }
     }
 
     // MARK: - Continue bar (pinned)
