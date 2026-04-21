@@ -3,49 +3,287 @@ import SwiftUI
 struct OnboardingView: View {
     @ObservedObject var userViewModel: UserViewModel
 
+    // Hero ring pulses
+    @State private var pulse1: CGFloat = 1.0
+    @State private var pulse2: CGFloat = 1.0
+
+    // Ambient background orb drift (fakes a mesh-gradient feel on iOS 17)
+    @State private var orb1Offset: CGSize = CGSize(width: -80, height: -120)
+    @State private var orb2Offset: CGSize = CGSize(width: 100,  height: 220)
+    @State private var orb3Offset: CGSize = CGSize(width: -140, height: 240)
+
+    // Staggered reveal
+    @State private var heroVisible = false
+    @State private var featuresVisible = false
+    @State private var ctaVisible = false
+
     var body: some View {
         NavigationStack {
-            // Back button tint for pushed views (SignupView, LoginView)
-            // so the "< Back" chevron is visible on the blue gradient
             ZStack {
-                LinearGradient(
-                    colors: [.blue, .cyan.opacity(0.6)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                backgroundLayer
 
-                VStack(spacing: 32) {
-                    Spacer()
+                VStack(spacing: 0) {
+                    Spacer(minLength: 40)
 
-                    VStack(spacing: 12) {
-                        Image(systemName: "video.circle.fill")
-                            .font(.system(size: 96))
-                            .foregroundStyle(.white)
-                        Text("Toodles")
-                            .font(.system(size: 44, weight: .bold))
-                            .foregroundStyle(.white)
-                        Text("Meet strangers in 60 seconds")
-                            .font(.title3)
-                            .foregroundStyle(.white.opacity(0.85))
-                    }
+                    heroSection
+                        .opacity(heroVisible ? 1 : 0)
+                        .offset(y: heroVisible ? 0 : 12)
+                        .padding(.bottom, 32)
 
-                    Spacer()
+                    featuresCard
+                        .padding(.horizontal, 22)
+                        .opacity(featuresVisible ? 1 : 0)
+                        .offset(y: featuresVisible ? 0 : 18)
 
-                    VStack(spacing: 16) {
-                        NavigationLink("Sign Up", destination: SignupView(viewModel: userViewModel))
-                            .buttonStyle(ToodlesPrimaryButtonStyle())
+                    Spacer(minLength: 36)
 
-                        NavigationLink("I already have an account", destination: LoginView(viewModel: userViewModel))
-                            .foregroundStyle(.white)
-                            .underline()
-                    }
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 48)
+                    buttonsSection
+                        .padding(.horizontal, 28)
+                        .padding(.bottom, 44)
+                        .opacity(ctaVisible ? 1 : 0)
+                        .offset(y: ctaVisible ? 0 : 24)
                 }
             }
+            .onAppear { startAnimations() }
         }
-        .tint(.black)
+        .tint(.white)
+    }
+
+    // MARK: - Background (moving blurred color orbs = modern mesh-gradient feel)
+
+    private var backgroundLayer: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.04, green: 0.05, blue: 0.16),
+                    Color(red: 0.09, green: 0.09, blue: 0.28),
+                    Color(red: 0.13, green: 0.10, blue: 0.34)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            // Blue orb
+            Circle()
+                .fill(Color(red: 0.42, green: 0.62, blue: 1.0).opacity(0.55))
+                .frame(width: 320, height: 320)
+                .blur(radius: 80)
+                .offset(orb1Offset)
+
+            // Pink/coral orb (brand Like color)
+            Circle()
+                .fill(Color(red: 0.98, green: 0.42, blue: 0.58).opacity(0.38))
+                .frame(width: 360, height: 360)
+                .blur(radius: 100)
+                .offset(orb2Offset)
+
+            // Orange orb (brand accent)
+            Circle()
+                .fill(Color(red: 0.98, green: 0.58, blue: 0.12).opacity(0.28))
+                .frame(width: 260, height: 260)
+                .blur(radius: 80)
+                .offset(orb3Offset)
+
+            // A very subtle noise/darken overlay — gives depth and stops the orbs from looking washed out
+            LinearGradient(
+                colors: [Color.black.opacity(0.10), Color.black.opacity(0.35)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        }
+    }
+
+    // MARK: - Hero
+
+    private var heroSection: some View {
+        VStack(spacing: 18) {
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.10), lineWidth: 2)
+                    .frame(width: 210, height: 210)
+                    .scaleEffect(pulse1)
+
+                Circle()
+                    .stroke(Color.white.opacity(0.18), lineWidth: 2)
+                    .frame(width: 160, height: 160)
+                    .scaleEffect(pulse2)
+
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.98, green: 0.42, blue: 0.58),
+                                Color(red: 0.98, green: 0.58, blue: 0.12)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 116, height: 116)
+                    .shadow(color: Color(red: 0.98, green: 0.42, blue: 0.58).opacity(0.6), radius: 28, y: 10)
+
+                Image(systemName: "video.fill")
+                    .font(.system(size: 44, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+
+            Text("Toodles")
+                .font(.system(size: 60, weight: .black))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.35), radius: 10, y: 5)
+                .tracking(-1.5)
+
+            Text("Video dating, reinvented.")
+                .font(.title3)
+                .fontWeight(.medium)
+                .foregroundStyle(.white.opacity(0.88))
+        }
+    }
+
+    // MARK: - Feature card (glass-morphism)
+
+    private var featuresCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            featureRow(
+                icon: "bolt.fill",
+                tint: Color(red: 0.98, green: 0.58, blue: 0.12),
+                title: "60-second video chats",
+                subtitle: "Real conversation. No endless swiping."
+            )
+            featureRow(
+                icon: "checkmark.seal.fill",
+                tint: Color(red: 0.42, green: 0.72, blue: 1.0),
+                title: "CSUF-verified students only",
+                subtitle: "Every match confirmed by university email."
+            )
+            featureRow(
+                icon: "shield.lefthalf.filled",
+                tint: Color(red: 0.98, green: 0.42, blue: 0.58),
+                title: "Safety is the default",
+                subtitle: "Trust Score plus one-tap moderation."
+            )
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.35), Color.white.opacity(0.05)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: .black.opacity(0.25), radius: 18, y: 8)
+    }
+
+    private func featureRow(icon: String, tint: Color, title: String, subtitle: String) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(tint.opacity(0.22))
+                    .frame(width: 44, height: 44)
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(tint)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.75))
+            }
+
+            Spacer()
+        }
+    }
+
+    // MARK: - CTA
+
+    private var buttonsSection: some View {
+        VStack(spacing: 14) {
+            NavigationLink {
+                SignupView(viewModel: userViewModel)
+            } label: {
+                HStack(spacing: 10) {
+                    Text("Get Started")
+                        .font(.title3.bold())
+                    Image(systemName: "arrow.right")
+                        .font(.body.bold())
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.98, green: 0.58, blue: 0.12),
+                            Color(red: 0.98, green: 0.42, blue: 0.40)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(Capsule())
+                .shadow(color: Color(red: 0.98, green: 0.45, blue: 0.30).opacity(0.55), radius: 16, y: 8)
+            }
+
+            NavigationLink {
+                LoginView(viewModel: userViewModel)
+            } label: {
+                HStack(spacing: 6) {
+                    Text("I already have an account")
+                    Image(systemName: "arrow.right")
+                        .font(.caption.bold())
+                }
+                .font(.callout.bold())
+                .foregroundStyle(.white.opacity(0.95))
+            }
+        }
+    }
+
+    // MARK: - Animations
+
+    private func startAnimations() {
+        // Staggered in-reveal
+        withAnimation(.spring(response: 0.8, dampingFraction: 0.8)) {
+            heroVisible = true
+        }
+        withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.25)) {
+            featuresVisible = true
+        }
+        withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.45)) {
+            ctaVisible = true
+        }
+
+        // Pulsing rings around the hero
+        withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+            pulse1 = 1.15
+        }
+        withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true).delay(0.4)) {
+            pulse2 = 1.12
+        }
+
+        // Slow orb drift — gives the background a living, mesh-gradient feel
+        withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) {
+            orb1Offset = CGSize(width: 100, height: -60)
+        }
+        withAnimation(.easeInOut(duration: 11).repeatForever(autoreverses: true)) {
+            orb2Offset = CGSize(width: -100, height: 40)
+        }
+        withAnimation(.easeInOut(duration: 13).repeatForever(autoreverses: true)) {
+            orb3Offset = CGSize(width: 160, height: 220)
+        }
     }
 }
 
