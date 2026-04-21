@@ -444,19 +444,26 @@ struct ProfileSetupView: View {
                 "interests":         Array(selectedInterests),
                 "profile_photo_url": photoUrl
             ]
-            FirestoreService.shared.updateUser(uid: uid, data: data) { err in
+            FirestoreService.shared.updateUser(uid: uid, data: data) { _ in
                 DispatchQueue.main.async {
+                    // Regardless of whether Firestore acknowledged — advance locally
+                    // so the UI reflects what the user just saved. Firestore caches
+                    // can race the post-write read, and loading from cache would
+                    // briefly wipe the fields the user just entered.
                     isSaving = false
-                    if err != nil {
-                        // Firestore write failed (rules, network, quota) — still
-                        // advance locally so the user isn't trapped on the gate.
-                        advanceLocally(photoUrl)
-                    } else {
-                        // Best path: reload from Firestore so every tab sees the new profile.
-                        userViewModel.loadProfile(uid: uid)
-                    }
+                    advanceLocally(photoUrl)
                 }
             }
+        }
+
+        // Fallback avatar URL — deterministic dicebear "initials" render of the
+        // user's name. Used when Firebase Storage upload fails (common on Appetize
+        // free-tier Firebase projects) so profile_photo_url always ends up being
+        // a real, fetchable URL. Without this, next login sees an empty photo and
+        // the setup gate triggers again.
+        let initialsAvatarUrl: () -> String = {
+            let seed = fullName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Toodles+User"
+            return "https://api.dicebear.com/9.x/initials/png?seed=\(seed)&backgroundColor=ff6b6b,4dabf7,fa983a,f55a8b&fontWeight=700"
         }
 
         // Upload photo if the user picked a new one; otherwise reuse any existing URL.
@@ -467,20 +474,19 @@ struct ProfileSetupView: View {
                     case .success(let url):
                         persistToFirestore(url)
                     case .failure:
-                        // Storage failed (often happens on Appetize with a free-tier
-                        // Firebase project). Advance locally with an in-memory image
-                        // reference so the demo flow continues. Profile re-saves when
-                        // the user edits later.
-                        isSaving = false
-                        advanceLocally("local://unuploaded")
+                        // Storage failed — persist with dicebear fallback so the
+                        // gate still passes next login AND the Profile tab renders
+                        // a real avatar instead of a broken image.
+                        persistToFirestore(initialsAvatarUrl())
                     }
                 }
             }
         } else if let existing = userViewModel.currentUser?.profilePhotoUrl, !existing.isEmpty {
             persistToFirestore(existing)
         } else {
-            isSaving = false
-            errorMessage = "Please add a profile photo to continue."
+            // User didn't pick a photo and doesn't have one on file — fallback to
+            // dicebear so the gate can still be passed.
+            persistToFirestore(initialsAvatarUrl())
         }
     }
 

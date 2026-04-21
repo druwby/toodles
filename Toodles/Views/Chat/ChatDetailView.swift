@@ -194,7 +194,9 @@ struct ChatDetailView: View {
         .onDisappear { viewModel.stop() }
         .sheet(isPresented: $showOptions) {
             optionsSheet
-                .presentationDetents([.medium, .large])
+                // Fixed large-fraction detent so the header photo never clips.
+                // Medium was cutting off Emma's face in testing.
+                .presentationDetents([.fraction(0.78)])
                 .presentationDragIndicator(.visible)
         }
     }
@@ -260,13 +262,21 @@ struct ChatDetailView: View {
                     fireToast("Profile view coming soon")
                 }
                 sheetAction(icon: "heart.slash", title: "Unmatch", tint: .orange) {
+                    // Unmatch should actually leave the chat — toast on the way out.
                     fireToast("Unmatched \(otherName)")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        dismiss()
+                    }
                 }
                 sheetAction(icon: "flag", title: "Report", tint: .red) {
                     fireToast("Reported — moderation team notified")
                 }
                 sheetAction(icon: "nosign", title: "Block", tint: .red) {
+                    // Block also exits the chat.
                     fireToast("Blocked \(otherName)")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        dismiss()
+                    }
                 }
             }
             .padding(.horizontal, 16)

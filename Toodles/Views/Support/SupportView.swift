@@ -8,7 +8,7 @@ struct SupportView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ToodlesHeader(title: "Customer Support")
+            ToodlesHeader(title: "Customer Support", trailingIcon: nil)
 
             ZStack {
                 AmbientOrbBackground(intensity: .soft)

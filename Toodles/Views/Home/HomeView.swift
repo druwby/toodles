@@ -12,7 +12,8 @@ struct HomeView: View {
 
             VStack(spacing: 0) {
                 // Translucent top bar — replaces the solid ToodlesHeader so the ambient
-                // background shows through. Keeps the same "Toodles" wordmark on the left.
+                // background shows through. Keeps the "Toodles" wordmark on the left.
+                // No trailing icon — a non-functional hamburger was misleading users.
                 HStack {
                     HStack(spacing: 8) {
                         Image(systemName: "video.fill")
@@ -23,9 +24,6 @@ struct HomeView: View {
                     .foregroundStyle(.white)
 
                     Spacer()
-
-                    Image(systemName: "line.3.horizontal")
-                        .foregroundStyle(.white)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 4)

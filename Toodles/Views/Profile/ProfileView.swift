@@ -4,21 +4,15 @@ struct ProfileView: View {
     @EnvironmentObject var userViewModel: UserViewModel
     @State private var showingEdit = false
 
-    // Demo fallbacks — shown when the user's Firestore profile has empty bio/interests.
-    // We don't mutate the user record; these are view-layer placeholders so the
-    // Profile tab never looks empty during the demo.
-    private var displayedBio: String {
-        let bio = userViewModel.currentUser?.bio ?? ""
-        return bio.isEmpty
-            ? "CSU Fullerton student. Here for spontaneous 60-second conversations, not endless swiping."
-            : bio
+    // Real values with explicit empty-state handling — no more hardcoded demo
+    // fallbacks that misled the user into thinking they'd entered interests
+    // they hadn't. Empty bio / interests show a subtle prompt instead.
+    private var actualBio: String {
+        userViewModel.currentUser?.bio ?? ""
     }
 
-    private var displayedInterests: [String] {
-        let interests = userViewModel.currentUser?.interests ?? []
-        return interests.isEmpty
-            ? ["Coffee shops", "Hiking", "Indie music", "Anime", "Night drives"]
-            : interests
+    private var actualInterests: [String] {
+        userViewModel.currentUser?.interests ?? []
     }
 
     private var displayedName: String {
@@ -32,7 +26,7 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ToodlesHeader(title: "Profile")
+                ToodlesHeader(title: "Profile", trailingIcon: nil)
 
                 ZStack {
                     AmbientOrbBackground(intensity: .soft)
@@ -72,24 +66,40 @@ struct ProfileView: View {
 
                             // About
                             sectionCard(title: "About") {
-                                Text(displayedBio)
-                                    .font(.callout)
-                                    .foregroundStyle(.black.opacity(0.8))
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                if actualBio.isEmpty {
+                                    Text("Tap Edit Profile to add a bio.")
+                                        .font(.callout)
+                                        .italic()
+                                        .foregroundStyle(.gray)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                } else {
+                                    Text(actualBio)
+                                        .font(.callout)
+                                        .foregroundStyle(.black.opacity(0.8))
+                                        .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
                             }
 
                             // Interests
                             sectionCard(title: "Interests") {
-                                FlowLayout(spacing: 8) {
-                                    ForEach(displayedInterests, id: \.self) { interest in
-                                        Text(interest)
-                                            .font(.caption.bold())
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 7)
-                                            .background(ToodlesTheme.chipBlue)
-                                            .foregroundStyle(ToodlesTheme.avatarText)
-                                            .clipShape(Capsule())
+                                if actualInterests.isEmpty {
+                                    Text("Tap Edit Profile to add interests.")
+                                        .font(.callout)
+                                        .italic()
+                                        .foregroundStyle(.gray)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                } else {
+                                    FlowLayout(spacing: 8) {
+                                        ForEach(actualInterests, id: \.self) { interest in
+                                            Text(interest)
+                                                .font(.caption.bold())
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 7)
+                                                .background(ToodlesTheme.chipBlue)
+                                                .foregroundStyle(ToodlesTheme.avatarText)
+                                                .clipShape(Capsule())
+                                        }
                                     }
                                 }
                             }

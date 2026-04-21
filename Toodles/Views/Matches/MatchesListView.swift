@@ -133,7 +133,7 @@ struct MatchesListView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ToodlesHeader(title: "Matches")
+                ToodlesHeader(title: "Matches", trailingIcon: nil)
 
                 ZStack {
                     AmbientOrbBackground(intensity: .soft)

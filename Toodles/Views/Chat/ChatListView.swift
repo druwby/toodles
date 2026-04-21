@@ -7,7 +7,7 @@ struct ChatListView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ToodlesHeader(title: "Chats")
+                ToodlesHeader(title: "Chats", trailingIcon: nil)
 
                 ZStack {
                     AmbientOrbBackground(intensity: .soft)
