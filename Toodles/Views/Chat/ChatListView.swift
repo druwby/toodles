@@ -20,6 +20,8 @@ struct ChatListView: View {
                             TextField("Search chats...", text: $searchQuery)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
+                                .foregroundStyle(.black)
+                                .tint(.black)
                         }
                         .padding(12)
                         .background(Color.white)

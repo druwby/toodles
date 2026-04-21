@@ -154,6 +154,8 @@ struct ChatDetailView: View {
 
                     HStack(spacing: 10) {
                         TextField("Type a message...", text: $draft)
+                            .foregroundStyle(.black)
+                            .tint(.black)
                             .padding(14)
                             .background(Color.white)
                             .clipShape(Capsule())

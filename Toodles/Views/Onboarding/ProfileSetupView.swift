@@ -151,6 +151,8 @@ struct ProfileSetupView: View {
                     .font(.caption.bold())
                     .foregroundStyle(.black)
                 TextField("What should we call you?", text: $displayName)
+                    .foregroundStyle(.black)
+                    .tint(.black)
                     .padding(10)
                     .background(Color(white: 0.97))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -168,6 +170,8 @@ struct ProfileSetupView: View {
                         .foregroundStyle(.gray)
                 }
                 TextEditor(text: $bio)
+                    .foregroundStyle(.black)
+                    .tint(.black)
                     .frame(height: 64)
                     .padding(6)
                     .background(Color(white: 0.97))
@@ -190,6 +194,8 @@ struct ProfileSetupView: View {
                 }
                 HStack(spacing: 8) {
                     TextField("Add an interest", text: $newInterest)
+                        .foregroundStyle(.black)
+                        .tint(.black)
                         .padding(10)
                         .background(Color(white: 0.97))
                         .clipShape(RoundedRectangle(cornerRadius: 8))

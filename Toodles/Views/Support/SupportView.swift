@@ -28,10 +28,14 @@ struct SupportView: View {
                         if !selectedCategory.isEmpty {
                             VStack(alignment: .leading, spacing: 10) {
                                 TextField("Subject", text: $subject)
+                                    .foregroundStyle(.black)
+                                    .tint(.black)
                                     .padding(12)
                                     .background(Color.white)
                                     .clipShape(RoundedRectangle(cornerRadius: 10))
                                 TextEditor(text: $description)
+                                    .foregroundStyle(.black)
+                                    .tint(.black)
                                     .frame(height: 120)
                                     .padding(8)
                                     .background(Color.white)

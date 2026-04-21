@@ -29,6 +29,8 @@ struct LoginView: View {
                             .textContentType(.emailAddress)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                            .foregroundStyle(.black)
+                            .tint(.black)
                             .padding()
                             .background(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -45,6 +47,8 @@ struct LoginView: View {
 
                     SecureField("", text: $viewModel.password, prompt: Text("Password").foregroundStyle(.gray))
                         .textContentType(.password)
+                        .foregroundStyle(.black)
+                        .tint(.black)
                         .padding()
                         .background(Color.white)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
