@@ -20,6 +20,6 @@ struct MainTabView: View {
             SupportView()
                 .tabItem { Label("Support", systemImage: "questionmark.circle.fill") }
         }
-        .tint(.orange)
+        .tint(ToodlesTheme.accent)
     }
 }

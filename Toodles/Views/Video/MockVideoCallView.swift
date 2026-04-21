@@ -2,6 +2,8 @@ import SwiftUI
 
 struct MockVideoCallView: View {
     let matchName: String
+    let matchSubtitle: String?
+    let matchPhotoUrl: String?
     var onEnd: () -> Void
 
     @State private var remaining: Int = 60
@@ -12,9 +14,18 @@ struct MockVideoCallView: View {
     @State private var disliked: Bool = false
     @State private var reported: Bool = false
 
-    // Subtitle shown under the peer's name — makes the "mock stranger" feel like a real CSUF match.
-    // Swap this out per test account as you record different takes.
-    private var matchSubtitle: String { "CSU Fullerton · Senior · Computer Science" }
+    // Default init keeps back-compat with any caller that hasn't passed subtitle/photo.
+    init(
+        matchName: String,
+        matchSubtitle: String? = nil,
+        matchPhotoUrl: String? = nil,
+        onEnd: @escaping () -> Void
+    ) {
+        self.matchName = matchName
+        self.matchSubtitle = matchSubtitle
+        self.matchPhotoUrl = matchPhotoUrl
+        self.onEnd = onEnd
+    }
 
     // Brand-aligned Like color. Toodles is blue; the heart reads in pink so it's
     // unambiguously "like" and separates from the blue peer avatar.
@@ -34,7 +45,7 @@ struct MockVideoCallView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar — match name + report + timer
+                // Top bar
                 HStack(spacing: 10) {
                     HStack(spacing: 8) {
                         Circle()
@@ -47,8 +58,6 @@ struct MockVideoCallView: View {
 
                     Spacer()
 
-                    // Small report affordance (safety escape hatch). Intentionally subtle —
-                    // not a primary control, but always one tap away per the PDF's safety claims.
                     Button {
                         reported = true
                     } label: {
@@ -73,29 +82,23 @@ struct MockVideoCallView: View {
 
                 Spacer()
 
-                // Center — peer card
+                // Center — peer card. Shows the peer's photo (when provided) inside
+                // a pulsing ring, so the mock call feels like a real peer-video tile.
                 VStack(spacing: 20) {
                     ZStack {
                         Circle()
                             .stroke(Color.blue.opacity(0.3), lineWidth: 3)
-                            .frame(width: 160, height: 160)
+                            .frame(width: 200, height: 200)
                             .scaleEffect(pulseScale)
                             .opacity(2.0 - pulseScale)
 
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [ToodlesTheme.bodyTop, ToodlesTheme.headerBlue],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
+                        peerAvatar
+                            .frame(width: 170, height: 170)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle().stroke(Color.white.opacity(0.5), lineWidth: 3)
                             )
-                            .frame(width: 140, height: 140)
                             .shadow(color: .blue.opacity(0.4), radius: 20, y: 8)
-
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 60))
-                            .foregroundStyle(.white.opacity(0.9))
                     }
 
                     VStack(spacing: 4) {
@@ -103,9 +106,11 @@ struct MockVideoCallView: View {
                             .font(.system(size: 28, weight: .bold))
                             .foregroundStyle(.white)
 
-                        Text(matchSubtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.7))
+                        if let sub = matchSubtitle {
+                            Text(sub)
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.75))
+                        }
 
                         HStack(spacing: 6) {
                             Image(systemName: "waveform")
@@ -151,8 +156,7 @@ struct MockVideoCallView: View {
                 }
 
                 // Bottom controls — mic / Like / Dislike / camera-flip
-                // No hang-up button: per the product thesis, the 60-second timer is the only
-                // way the call ends normally. Safety is served by the Report flag in the top bar.
+                // No hang-up: the 60-second timer is the only normal exit.
                 HStack(spacing: 16) {
                     callButton(
                         icon: muted ? "mic.slash.fill" : "mic.fill",
@@ -162,7 +166,6 @@ struct MockVideoCallView: View {
                         muted.toggle()
                     }
 
-                    // Like — heart. Pink when active. Private signal; the peer does not see.
                     Button {
                         liked = true
                         if disliked { disliked = false }
@@ -178,7 +181,6 @@ struct MockVideoCallView: View {
                             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: liked)
                     }
 
-                    // Dislike — X. Neutral gray, not red. Private signal.
                     Button {
                         disliked = true
                         if liked { liked = false }
@@ -220,11 +222,62 @@ struct MockVideoCallView: View {
             }
         }
         .fullScreenCover(isPresented: $showFeedback) {
-            PostSessionFeedbackView(matchName: matchName, onDone: { onEnd() })
+            PostSessionFeedbackView(
+                matchName: matchName,
+                matchSubtitle: matchSubtitle,
+                matchPhotoUrl: matchPhotoUrl,
+                presetStatus: preferredStatusFromCallControls,
+                onDone: { onEnd() }
+            )
         }
     }
 
     // MARK: - Helpers
+
+    /// Pass the user's mid-call Like/Dislike/Report tap through to the feedback
+    /// screen so they don't have to confirm the same decision twice. Matches
+    /// the "private signal" story in the Scene 6 voice-over.
+    private var preferredStatusFromCallControls: String? {
+        if reported { return "reported" }
+        if liked    { return "matched" }
+        if disliked { return "rejected" }
+        return nil
+    }
+
+    private var peerAvatar: some View {
+        Group {
+            if let urlStr = matchPhotoUrl,
+               !urlStr.isEmpty,
+               let url = URL(string: urlStr) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        avatarFallback
+                    }
+                }
+            } else {
+                avatarFallback
+            }
+        }
+    }
+
+    private var avatarFallback: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [ToodlesTheme.bodyTop, ToodlesTheme.headerBlue],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            Image(systemName: "person.fill")
+                .font(.system(size: 72))
+                .foregroundStyle(.white.opacity(0.9))
+        }
+    }
 
     private var timerString: String {
         let m = remaining / 60

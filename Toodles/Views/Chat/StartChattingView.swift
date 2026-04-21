@@ -1,11 +1,35 @@
 import SwiftUI
 
+/// The demo peer pool. Mirrors the girls in `MatchesViewModel.demoMatches`
+/// so the matching flow, post-session feedback, and Matches/Chats tabs all
+/// share the same characters — continuity across the demo narrative.
+struct DemoPeer {
+    let name: String
+    let subtitle: String
+    let photoUrl: String
+}
+
+enum DemoPeerPool {
+    static let all: [DemoPeer] = [
+        DemoPeer(name: "Emma Chen",         subtitle: "Junior · Nursing",        photoUrl: "https://randomuser.me/api/portraits/women/44.jpg"),
+        DemoPeer(name: "Sophia Rodriguez",  subtitle: "Sophomore · Business",    photoUrl: "https://randomuser.me/api/portraits/women/68.jpg"),
+        DemoPeer(name: "Olivia Kim",        subtitle: "Senior · Art History",    photoUrl: "https://randomuser.me/api/portraits/women/22.jpg"),
+        DemoPeer(name: "Mia Patel",         subtitle: "Senior · Biology",        photoUrl: "https://randomuser.me/api/portraits/women/90.jpg"),
+    ]
+
+    /// Deterministic first pick (Emma) for demo rehearsals — keeps the narrative
+    /// consistent with the Matches tab. Random picks thereafter.
+    static func pick(session index: Int = 0) -> DemoPeer {
+        index == 0 ? all[0] : all.randomElement() ?? all[0]
+    }
+}
+
 struct StartChattingView: View {
     @Binding var isPresented: Bool
     @EnvironmentObject var userViewModel: UserViewModel
     @State private var phase: Phase = .checkingTrust
-    @State private var fakeMatchName = "Alex Johnson"
     @State private var showCall = false
+    @State private var peer: DemoPeer = DemoPeerPool.pick()
 
     enum Phase { case checkingTrust, matchmaking, blocked }
 
@@ -43,10 +67,15 @@ struct StartChattingView: View {
         }
         .task { await runFlow() }
         .fullScreenCover(isPresented: $showCall) {
-            MockVideoCallView(matchName: fakeMatchName, onEnd: {
-                showCall = false
-                isPresented = false
-            })
+            MockVideoCallView(
+                matchName: peer.name,
+                matchSubtitle: peer.subtitle,
+                matchPhotoUrl: peer.photoUrl,
+                onEnd: {
+                    showCall = false
+                    isPresented = false
+                }
+            )
         }
     }
 
