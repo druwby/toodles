@@ -19,6 +19,11 @@ final class AuthManager {
 
     var isSignedIn: Bool { currentUID != nil }
 
+    /// Last-known email for the signed-in user. Populated by login/signup,
+    /// cleared on logout. Used as a fallback when the Firestore profile
+    /// doc isn't readable (e.g. brand-new signup before the doc write lands).
+    var currentEmail: String? { userEmail }
+
     // MARK: - Email Domain Validation
     static func isValidFullertonEmail(_ email: String) -> Bool {
         let pattern = #"^[A-Z0-9._%+-]+@(csu\.fullerton\.edu|fullerton\.edu)$"#

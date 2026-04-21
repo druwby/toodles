@@ -13,6 +13,11 @@ final class UserViewModel: ObservableObject {
     private let authManager = AuthManager.shared
     private let firestoreService = FirestoreService.shared
 
+    /// Hard cap on how long ContentView will wait for the Firestore profile to
+    /// load before we fabricate a stub. Keeps Appetize sessions snappy even when
+    /// Firestore is slow or offline.
+    private static let profileLoadTimeoutSeconds: Double = 5.0
+
     init() {
         checkAuthState()
     }
@@ -100,21 +105,60 @@ final class UserViewModel: ObservableObject {
 
     // MARK: - Load profile
     func loadProfile(uid: String) {
-        firestoreService.fetchUser(uid: uid) { [weak self] data in
-            DispatchQueue.main.async {
-                guard let self = self, let data = data else { return }
-                self.currentUser = User(
-                    id: uid,
-                    email: data["email"] as? String ?? "",
-                    displayName: data["display_name"] as? String ?? "",
-                    bio: data["bio"] as? String ?? "",
-                    interests: data["interests"] as? [String] ?? [],
-                    profilePhotoUrl: data["profile_photo_url"] as? String,
-                    trustScore: data["trust_score"] as? Int ?? 100,
-                    verified: data["verified"] as? Bool ?? false,
-                    createdAt: (data["created_at"] as? Timestamp)?.dateValue() ?? Date()
-                )
+        // Fire a fallback stub in N seconds if Firestore never responds. This
+        // prevents the ContentView splash from hanging forever on a slow Firestore
+        // read or a missing user document.
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.profileLoadTimeoutSeconds) { [weak self] in
+            guard let self = self else { return }
+            if self.isAuthenticated && self.currentUser == nil {
+                self.currentUser = self.stubUser(uid: uid)
             }
         }
+
+        firestoreService.fetchUser(uid: uid) { [weak self] data in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+
+                if let data = data {
+                    self.currentUser = User(
+                        id: uid,
+                        email: data["email"] as? String ?? self.authManager.currentEmail ?? "",
+                        displayName: data["display_name"] as? String ?? "",
+                        bio: data["bio"] as? String ?? "",
+                        interests: data["interests"] as? [String] ?? [],
+                        profilePhotoUrl: data["profile_photo_url"] as? String,
+                        trustScore: data["trust_score"] as? Int ?? 100,
+                        verified: data["verified"] as? Bool ?? false,
+                        createdAt: (data["created_at"] as? Timestamp)?.dateValue() ?? Date()
+                    )
+                } else {
+                    // Firestore returned nil — the user doc doesn't exist (e.g. a
+                    // signup where the createUser write was lost, or an edge Firestore
+                    // read failure). Fall back to a stub so ProfileSetupView picks up
+                    // and the user can complete their profile from scratch.
+                    self.currentUser = self.stubUser(uid: uid)
+                }
+            }
+        }
+    }
+
+    /// Minimal `User` built from the in-memory auth info. Used whenever
+    /// Firestore can't tell us who the signed-in user is — the important
+    /// thing is that `profilePhotoUrl` is nil, so ContentView routes the
+    /// user to `ProfileSetupView` to fill in the details.
+    private func stubUser(uid: String) -> User {
+        let email = authManager.currentEmail ?? self.email
+        let fallbackName = email.components(separatedBy: "@").first ?? ""
+        return User(
+            id: uid,
+            email: email,
+            displayName: fallbackName,
+            bio: "",
+            interests: [],
+            profilePhotoUrl: nil,
+            trustScore: 100,
+            verified: true,
+            createdAt: Date()
+        )
     }
 }

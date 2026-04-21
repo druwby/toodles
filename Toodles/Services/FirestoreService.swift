@@ -34,7 +34,10 @@ final class FirestoreService {
     }
 
     func updateUser(uid: String, data: [String: Any], completion: @escaping (Error?) -> Void) {
-        db.collection("users").document(uid).updateData(data, completion: completion)
+        // setData with merge creates the doc if it doesn't exist yet, and merges
+        // fields otherwise. Safer than updateData which errors if the doc is missing —
+        // which happens for any user whose signup-time createUser write didn't land.
+        db.collection("users").document(uid).setData(data, merge: true, completion: completion)
     }
 
     // MARK: - Matches
