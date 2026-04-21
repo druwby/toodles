@@ -4,7 +4,11 @@ struct MockVideoCallView: View {
     let matchName: String
     let matchSubtitle: String?
     let matchPhotoUrl: String?
-    var onEnd: () -> Void
+    /// true -> user wants another match; false -> user is ending the session.
+    /// The bool bubbles up via PostSessionFeedbackView.onDone and
+    /// MatchCelebrationView.onContinue so StartChattingView can either loop
+    /// or dismiss based on the user's choice.
+    var onEnd: (Bool) -> Void
 
     @State private var remaining: Int = 60
     @State private var muted: Bool = false
@@ -14,12 +18,11 @@ struct MockVideoCallView: View {
     @State private var disliked: Bool = false
     @State private var reported: Bool = false
 
-    // Default init keeps back-compat with any caller that hasn't passed subtitle/photo.
     init(
         matchName: String,
         matchSubtitle: String? = nil,
         matchPhotoUrl: String? = nil,
-        onEnd: @escaping () -> Void
+        onEnd: @escaping (Bool) -> Void
     ) {
         self.matchName = matchName
         self.matchSubtitle = matchSubtitle
@@ -244,7 +247,7 @@ struct MockVideoCallView: View {
                 matchSubtitle: matchSubtitle,
                 matchPhotoUrl: matchPhotoUrl,
                 presetStatus: preferredStatusFromCallControls,
-                onDone: { onEnd() }
+                onDone: { wantsNext in onEnd(wantsNext) }
             )
         }
     }

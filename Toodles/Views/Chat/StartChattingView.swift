@@ -15,10 +15,14 @@ enum DemoPeerPool {
         DemoPeer(name: "Sophia Rodriguez",  subtitle: "Sophomore · Business",    photoUrl: "https://randomuser.me/api/portraits/women/68.jpg"),
         DemoPeer(name: "Olivia Kim",        subtitle: "Senior · Art History",    photoUrl: "https://randomuser.me/api/portraits/women/22.jpg"),
         DemoPeer(name: "Mia Patel",         subtitle: "Senior · Biology",        photoUrl: "https://randomuser.me/api/portraits/women/90.jpg"),
+        DemoPeer(name: "Hannah Foster",     subtitle: "Junior · Communications", photoUrl: "https://randomuser.me/api/portraits/women/65.jpg"),
+        DemoPeer(name: "Riley Park",        subtitle: "Senior · Kinesiology",    photoUrl: "https://randomuser.me/api/portraits/women/17.jpg"),
     ]
 
-    static func pick(session index: Int = 0) -> DemoPeer {
-        index == 0 ? all[0] : all.randomElement() ?? all[0]
+    /// Deterministic round-robin through the pool. First session is Emma,
+    /// matching the Matches tab's top row, so the narrative is consistent.
+    static func pick(session index: Int) -> DemoPeer {
+        all[index % all.count]
     }
 }
 
@@ -28,9 +32,9 @@ struct StartChattingView: View {
 
     @State private var phase: Phase = .checkingTrust
     @State private var showCall = false
-    @State private var peer: DemoPeer = DemoPeerPool.pick()
+    @State private var sessionIndex: Int = 0
+    @State private var peer: DemoPeer = DemoPeerPool.pick(session: 0)
 
-    // Animation state
     @State private var ring1Scale: CGFloat = 1.0
     @State private var ring2Scale: CGFloat = 1.0
     @State private var ring3Scale: CGFloat = 1.0
@@ -42,7 +46,13 @@ struct StartChattingView: View {
         ZStack {
             AmbientOrbBackground(intensity: .soft)
 
-            VStack(spacing: 32) {
+            VStack(spacing: 0) {
+                // Session counter chip — shows this is a flowing sequence, not one-shot
+                if sessionIndex > 0 && phase != .blocked {
+                    sessionCounterChip
+                        .padding(.top, 28)
+                }
+
                 Spacer()
 
                 switch phase {
@@ -62,33 +72,62 @@ struct StartChattingView: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Text("Cancel")
-                            .font(.body.bold())
-                            .foregroundStyle(.white.opacity(0.8))
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 10)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Capsule())
+                        HStack(spacing: 6) {
+                            Image(systemName: "xmark.circle")
+                            Text(sessionIndex == 0 ? "Cancel" : "End session")
+                        }
+                        .font(.body.bold())
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
                     }
                     .padding(.bottom, 44)
                 }
             }
         }
-        .task { await runFlow() }
+        // `.task(id:)` re-runs whenever sessionIndex changes so the matching
+        // animation replays between matches — the "finding your next person"
+        // transition is just this same flow running again.
+        .task(id: sessionIndex) {
+            await runFlow()
+        }
         .fullScreenCover(isPresented: $showCall) {
             MockVideoCallView(
                 matchName: peer.name,
                 matchSubtitle: peer.subtitle,
                 matchPhotoUrl: peer.photoUrl,
-                onEnd: {
+                onEnd: { wantsNext in
                     showCall = false
-                    isPresented = false
+                    if wantsNext {
+                        // Give the cover's dismiss animation a beat, then loop.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            startNextMatch()
+                        }
+                    } else {
+                        isPresented = false
+                    }
                 }
             )
         }
     }
 
     // MARK: - Scenes
+
+    private var sessionCounterChip: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "bolt.fill")
+                .font(.caption2.bold())
+            Text("Chat \(sessionIndex + 1) of your session")
+                .font(.caption.bold())
+        }
+        .foregroundStyle(.white.opacity(0.9))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+    }
 
     private var trustCheckScene: some View {
         VStack(spacing: 20) {
@@ -128,12 +167,10 @@ struct StartChattingView: View {
     private var matchmakingScene: some View {
         VStack(spacing: 20) {
             ZStack {
-                // Three concentric radar-ping rings expanding out of the center
-                radarRing(scale: ring1Scale, delay: 0)
-                radarRing(scale: ring2Scale, delay: 0.6)
-                radarRing(scale: ring3Scale, delay: 1.2)
+                radarRing(scale: ring1Scale)
+                radarRing(scale: ring2Scale)
+                radarRing(scale: ring3Scale)
 
-                // Center user glyph
                 Circle()
                     .fill(
                         LinearGradient(
@@ -154,7 +191,7 @@ struct StartChattingView: View {
             }
             .frame(width: 240, height: 240)
 
-            Text("Looking for a match…")
+            Text(sessionIndex == 0 ? "Looking for a match…" : "Finding your next match…")
                 .font(.title3.bold())
                 .foregroundStyle(.white)
 
@@ -225,9 +262,7 @@ struct StartChattingView: View {
         }
     }
 
-    // MARK: - Radar ring helper
-
-    private func radarRing(scale: CGFloat, delay: Double) -> some View {
+    private func radarRing(scale: CGFloat) -> some View {
         Circle()
             .stroke(
                 LinearGradient(
@@ -246,8 +281,16 @@ struct StartChattingView: View {
 
     // MARK: - Flow
 
+    private func startNextMatch() {
+        // Round-robin to the next demo peer, then bump sessionIndex which
+        // re-triggers `.task(id:)` → runFlow() → matchmaking → call.
+        sessionIndex += 1
+        peer = DemoPeerPool.pick(session: sessionIndex)
+    }
+
     private func runFlow() async {
-        // Start ring animations (only takes effect in matchmaking state)
+        // Radar animations — start fresh for every session.
+        ring1Scale = 1.0; ring2Scale = 1.0; ring3Scale = 1.0
         withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) {
             ring1Scale = 2.6
         }
@@ -258,25 +301,28 @@ struct StartChattingView: View {
             ring3Scale = 2.6
         }
 
-        // Trust Gate — ~1.5 sec
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
-        let trust = userViewModel.currentUser?.trustScore ?? 100
-        if trust < 50 {
-            await MainActor.run { phase = .blocked }
-            return
+        // Trust check only on the first session — subsequent matches skip
+        // straight to matchmaking since we already know the user passed.
+        if sessionIndex == 0 {
+            await MainActor.run { phase = .checkingTrust }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            let trust = userViewModel.currentUser?.trustScore ?? 100
+            if trust < 50 {
+                await MainActor.run { phase = .blocked }
+                return
+            }
         }
 
-        // Matchmaking — ~2.5 sec
         await MainActor.run {
-            withAnimation(.easeInOut) { phase = .matchmaking }
+            withAnimation { phase = .matchmaking }
         }
-        try? await Task.sleep(nanoseconds: 2_500_000_000)
+        try? await Task.sleep(nanoseconds: 2_200_000_000)
 
-        // Match found — brief flourish before opening the call
         await MainActor.run {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.7)) {
                 phase = .matchFound
             }
+            foundPulse = 1.0
             withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
                 foundPulse = 1.12
             }

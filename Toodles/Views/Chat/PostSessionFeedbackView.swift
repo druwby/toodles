@@ -4,10 +4,14 @@ struct PostSessionFeedbackView: View {
     let matchName: String
     let matchSubtitle: String?
     let matchPhotoUrl: String?
-    /// If set (e.g. the user already tapped Like mid-call), the matching button
-    /// is pre-highlighted so the rating state carries over.
+    /// Carried from mid-call — pre-highlights the matching button so the user
+    /// doesn't have to re-rate after tapping heart/X/flag in the call view.
     let presetStatus: String?
-    var onDone: () -> Void
+    /// True if the user taps Like/Pass/Report and wants to continue matching
+    /// with new peers. False if they explicitly tap End for now. The value
+    /// bubbles up to StartChattingView which either loops (true) or dismisses
+    /// the entire matchmaking flow (false).
+    var onDone: (Bool) -> Void
 
     @State private var isSaving = false
     @State private var selection: String?
@@ -18,7 +22,7 @@ struct PostSessionFeedbackView: View {
         matchSubtitle: String? = nil,
         matchPhotoUrl: String? = nil,
         presetStatus: String? = nil,
-        onDone: @escaping () -> Void
+        onDone: @escaping (Bool) -> Void
     ) {
         self.matchName = matchName
         self.matchSubtitle = matchSubtitle
@@ -29,19 +33,18 @@ struct PostSessionFeedbackView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [.blue, .cyan.opacity(0.6)], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
+            AmbientOrbBackground(intensity: .soft)
 
-            VStack(spacing: 28) {
+            VStack(spacing: 24) {
                 Spacer(minLength: 8)
 
                 // Peer card — photo, name, subtitle
-                VStack(spacing: 14) {
-                    PersonAvatar(name: matchName, photoUrl: matchPhotoUrl, size: 160)
+                VStack(spacing: 12) {
+                    PersonAvatar(name: matchName, photoUrl: matchPhotoUrl, size: 150)
                         .overlay(
-                            Circle().stroke(Color.white.opacity(0.65), lineWidth: 4)
+                            Circle().stroke(Color.white.opacity(0.55), lineWidth: 4)
                         )
-                        .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
+                        .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
 
                     Text(matchName)
                         .font(.largeTitle.bold())
@@ -54,9 +57,14 @@ struct PostSessionFeedbackView: View {
                     }
                 }
 
-                Text("How was your chat?")
-                    .font(.title3.bold())
-                    .foregroundStyle(.white.opacity(0.95))
+                VStack(spacing: 4) {
+                    Text("How was your chat?")
+                        .font(.title3.bold())
+                        .foregroundStyle(.white)
+                    Text("We'll line up your next match right after.")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.7))
+                }
 
                 HStack(spacing: 18) {
                     feedbackButton(
@@ -85,12 +93,30 @@ struct PostSessionFeedbackView: View {
 
                 Spacer()
 
-                Text("Your response is private. The other person can't see it.")
+                // Explicit "end the session" escape. Without this the loop is
+                // infinite — Tinder-style, which is the behaviour we want by
+                // default, but the user still needs a clear exit.
+                Button {
+                    submit(status: "ended", wantsNext: false)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "xmark.circle")
+                        Text("End for now")
+                    }
+                    .font(.callout.bold())
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                }
+
+                Text("Your rating is private. The other person can't see it.")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.white.opacity(0.65))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 28)
             }
         }
         .disabled(isSaving)
@@ -101,9 +127,12 @@ struct PostSessionFeedbackView: View {
             MatchCelebrationView(
                 matchName: matchName,
                 matchPhotoUrl: matchPhotoUrl,
-                onContinue: {
+                onContinue: { wantsNext in
                     showCelebration = false
-                    onDone()
+                    // Give the celebration's dismiss animation a beat
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        onDone(wantsNext)
+                    }
                 }
             )
         }
@@ -122,14 +151,14 @@ struct PostSessionFeedbackView: View {
             .frame(width: 92, height: 92)
             .foregroundStyle(.white)
             .background(
-                selected ? accent : Color.white.opacity(0.22)
+                selected ? accent : Color.white.opacity(0.18)
             )
             .clipShape(RoundedRectangle(cornerRadius: 18))
             .overlay(
                 RoundedRectangle(cornerRadius: 18)
-                    .stroke(selected ? Color.white : Color.white.opacity(0.3), lineWidth: selected ? 2 : 1)
+                    .stroke(selected ? Color.white : Color.white.opacity(0.25), lineWidth: selected ? 2 : 1)
             )
-            .shadow(color: selected ? accent.opacity(0.5) : .clear, radius: 12, y: 6)
+            .shadow(color: selected ? accent.opacity(0.55) : .clear, radius: 12, y: 6)
             .scaleEffect(selected ? 1.06 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)
         }
@@ -137,20 +166,18 @@ struct PostSessionFeedbackView: View {
 
     private func tap(status: String) {
         selection = status
-        // Give the button animation a beat to read, then submit.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            submit(status: status)
+            submit(status: status, wantsNext: true)
         }
     }
 
-    private func submit(status: String) {
+    private func submit(status: String, wantsNext: Bool) {
         guard !isSaving else { return }
         isSaving = true
 
-        // Demo path: no real Firestore write required for the capstone presentation.
-        // We still hit Firestore if the user is authenticated, but we don't block
-        // the celebration on it. This keeps Scene 7 snappy on Appetize.
-        if let uid = AuthManager.shared.currentUID {
+        // Best-effort Firestore write — don't block the next-match transition
+        // on the network round-trip. Scene 7 stays snappy on Appetize.
+        if let uid = AuthManager.shared.currentUID, status != "ended" {
             let fakeOtherUid = "demo_\(matchName.replacingOccurrences(of: " ", with: "_"))"
             FirestoreService.shared.createMatch(userA: uid, userB: fakeOtherUid, status: status) { _ in }
 
@@ -164,13 +191,13 @@ struct PostSessionFeedbackView: View {
             }
         }
 
-        // Reveal the celebration on Like. Pass/Report dismiss directly.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             isSaving = false
             if status == "matched" {
+                // Celebration handles its own wantsNext via its own buttons.
                 showCelebration = true
             } else {
-                onDone()
+                onDone(wantsNext)
             }
         }
     }

@@ -2,12 +2,14 @@ import SwiftUI
 
 /// Shown immediately after a user taps Like on the PostSessionFeedbackView.
 /// In production this would fire only on a mutual-like; for the demo it fires
-/// every time so faculty see the moment. Keeps the narrative of "your chat
-/// turned into a connection" visible in the recording.
+/// every time so faculty see the moment. Two exits: continue to the next
+/// match (primary CTA, Tinder-style) or end the session (secondary).
 struct MatchCelebrationView: View {
     let matchName: String
     let matchPhotoUrl: String?
-    var onContinue: () -> Void
+    /// True when the user wants to continue with another match, false when
+    /// they want to end the session and return to Home.
+    var onContinue: (Bool) -> Void
 
     @State private var animate = false
     @State private var floatHearts = false
@@ -27,7 +29,6 @@ struct MatchCelebrationView: View {
             )
             .ignoresSafeArea()
 
-            // Floating hearts decoration
             heartsLayer
                 .allowsHitTesting(false)
 
@@ -48,12 +49,11 @@ struct MatchCelebrationView: View {
                     .padding(.horizontal, 40)
                     .opacity(animate ? 1.0 : 0.0)
 
-                // Two photo pair
                 HStack(spacing: -28) {
-                    circleAvatar(photoUrl: nil, initials: "You", tint: Color.white.opacity(0.35))
+                    circleAvatar(photoUrl: nil, initials: "You")
                         .rotationEffect(.degrees(animate ? -10 : -60))
                         .offset(x: animate ? 0 : -120)
-                    circleAvatar(photoUrl: matchPhotoUrl, initials: String(matchName.prefix(2)).uppercased(), tint: Color.white.opacity(0.35))
+                    circleAvatar(photoUrl: matchPhotoUrl, initials: String(matchName.prefix(2)).uppercased())
                         .rotationEffect(.degrees(animate ? 10 : 60))
                         .offset(x: animate ? 0 : 120)
                 }
@@ -63,20 +63,24 @@ struct MatchCelebrationView: View {
 
                 VStack(spacing: 14) {
                     Button {
-                        onContinue()
+                        onContinue(true)
                     } label: {
-                        Text("Send a message")
-                            .font(.title3.bold())
-                            .foregroundStyle(coral)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.white)
-                            .clipShape(Capsule())
+                        HStack(spacing: 10) {
+                            Text("Find your next match")
+                                .font(.title3.bold())
+                            Image(systemName: "arrow.right")
+                        }
+                        .foregroundStyle(coral)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.white)
+                        .clipShape(Capsule())
+                        .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
                     }
                     Button {
-                        onContinue()
+                        onContinue(false)
                     } label: {
-                        Text("Keep swiping")
+                        Text("End for now")
                             .font(.body.bold())
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
@@ -100,9 +104,7 @@ struct MatchCelebrationView: View {
         }
     }
 
-    // MARK: - Photo avatar (reuses PersonAvatar but at large size with a pink ring)
-
-    private func circleAvatar(photoUrl: String?, initials: String, tint: Color) -> some View {
+    private func circleAvatar(photoUrl: String?, initials: String) -> some View {
         ZStack {
             PersonAvatar(name: initials, photoUrl: photoUrl, size: 150)
         }
@@ -112,8 +114,6 @@ struct MatchCelebrationView: View {
         )
         .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
     }
-
-    // MARK: - Floating hearts background
 
     private var heartsLayer: some View {
         GeometryReader { geo in
