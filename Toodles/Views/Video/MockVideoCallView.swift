@@ -60,6 +60,11 @@ struct MockVideoCallView: View {
 
                     Button {
                         reported = true
+                        // Report also exits the call — you don't keep chatting
+                        // with someone you're reporting.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            endCall()
+                        }
                     } label: {
                         Image(systemName: reported ? "flag.fill" : "flag")
                             .font(.system(size: 14, weight: .semibold))
@@ -169,6 +174,13 @@ struct MockVideoCallView: View {
                     Button {
                         liked = true
                         if disliked { disliked = false }
+                        // End the call immediately on Like — the user has decided,
+                        // the rest of the 60 seconds adds nothing. Carries the
+                        // choice into post-session so the feedback screen starts
+                        // on Like → Match Celebration.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            endCall()
+                        }
                     } label: {
                         Image(systemName: liked ? "heart.fill" : "heart")
                             .font(.system(size: 30, weight: .bold))
@@ -184,6 +196,11 @@ struct MockVideoCallView: View {
                     Button {
                         disliked = true
                         if liked { liked = false }
+                        // End the call immediately on Dislike — don't force the
+                        // user to watch a timer they've already decided to exit.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            endCall()
+                        }
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 28, weight: .bold))

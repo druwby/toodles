@@ -119,7 +119,7 @@ struct ProfileView: View {
                                 }
                             }
                             .padding(.horizontal, 16)
-                            .padding(.bottom, 32)
+                            .padding(.bottom, 100) // clear the tab bar so Sign Out isn't hugged by it
                         }
                         .padding(.vertical, 12)
                     }
