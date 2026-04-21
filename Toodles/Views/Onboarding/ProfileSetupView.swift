@@ -262,23 +262,16 @@ struct ProfileSetupView: View {
 
     // MARK: - Gender card
 
-    /// LazyVGrid forces SwiftUI to allocate exactly 1/3 of the row to each
-    /// column regardless of what the content tries to do. Using it here
-    /// because HStack + .frame(maxWidth: .infinity) was somehow letting the
-    /// middle pill collapse to zero width on Appetize renderings.
-    private static let pillColumns: [GridItem] = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8)
-    ]
-
     private var genderCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("I am a")
                 .font(.caption.bold())
                 .foregroundStyle(.black)
 
-            LazyVGrid(columns: Self.pillColumns, spacing: 0) {
+            // Vertical stack — each pill takes the full card width so none
+            // can collapse into zero width like they were doing horizontally.
+            // Matches Hinge's signup gender selector.
+            VStack(spacing: 8) {
                 pillButton(title: "Woman", selected: selectedGender == .woman) {
                     selectedGender = .woman
                 }
@@ -303,7 +296,7 @@ struct ProfileSetupView: View {
                 .font(.caption.bold())
                 .foregroundStyle(.black)
 
-            LazyVGrid(columns: Self.pillColumns, spacing: 0) {
+            VStack(spacing: 8) {
                 pillButton(title: "Women", selected: selectedShowMe == .women) {
                     selectedShowMe = .women
                 }
@@ -330,11 +323,10 @@ struct ProfileSetupView: View {
         // buttonStyle didn't cure it. This has no button-state opacity / layout
         // quirks at all: a styled Text that responds to taps.
         Text(title)
-            .font(.footnote.bold())
-            .minimumScaleFactor(0.7)
+            .font(.callout.bold())
             .lineLimit(1)
             .foregroundStyle(selected ? .white : ToodlesTheme.avatarText)
-            .frame(maxWidth: .infinity, minHeight: 40)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(
                 selected
                     ? AnyShapeStyle(
