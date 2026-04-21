@@ -268,14 +268,17 @@ struct ProfileSetupView: View {
                 .font(.caption.bold())
                 .foregroundStyle(.black)
 
+            // Explicit pills — no ForEach/CaseIterable to eliminate any way
+            // for one pill to silently drop out of the row.
             HStack(spacing: 8) {
-                ForEach(Gender.allCases) { g in
-                    pillButton(
-                        title: g.displayName,
-                        selected: selectedGender == g
-                    ) {
-                        selectedGender = g
-                    }
+                pillButton(title: "Woman", selected: selectedGender == .woman) {
+                    selectedGender = .woman
+                }
+                pillButton(title: "Man", selected: selectedGender == .man) {
+                    selectedGender = .man
+                }
+                pillButton(title: "Non-binary", selected: selectedGender == .nonBinary) {
+                    selectedGender = .nonBinary
                 }
             }
         }
@@ -293,13 +296,14 @@ struct ProfileSetupView: View {
                 .foregroundStyle(.black)
 
             HStack(spacing: 8) {
-                ForEach(ShowMe.allCases) { s in
-                    pillButton(
-                        title: s.displayName,
-                        selected: selectedShowMe == s
-                    ) {
-                        selectedShowMe = s
-                    }
+                pillButton(title: "Women", selected: selectedShowMe == .women) {
+                    selectedShowMe = .women
+                }
+                pillButton(title: "Men", selected: selectedShowMe == .men) {
+                    selectedShowMe = .men
+                }
+                pillButton(title: "Everyone", selected: selectedShowMe == .everyone) {
+                    selectedShowMe = .everyone
                 }
             }
 
@@ -331,11 +335,9 @@ struct ProfileSetupView: View {
                                 endPoint: .trailing
                             )
                         )
-                        // Unselected: a darker chip so the pill is visible on
-                        // the white card. chipBlue is nearly-white and was
-                        // blending into the card surface, making unselected
-                        // pills look "missing".
-                        : AnyShapeStyle(Color(red: 0.90, green: 0.92, blue: 0.97))
+                        // Darker grayed-blue fill so unselected pills are
+                        // clearly visible against the white card surface.
+                        : AnyShapeStyle(Color(red: 0.83, green: 0.87, blue: 0.94))
                 )
                 .clipShape(Capsule())
                 .overlay(
@@ -343,13 +345,17 @@ struct ProfileSetupView: View {
                         .stroke(
                             selected
                                 ? Color.white.opacity(0.6)
-                                : ToodlesTheme.avatarText.opacity(0.25),
-                            lineWidth: 1
+                                : ToodlesTheme.avatarText.opacity(0.35),
+                            lineWidth: selected ? 1 : 1.5
                         )
                 )
                 .scaleEffect(selected ? 1.03 : 1.0)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)
         }
+        // .plain keeps the label fully opaque during the press. The default
+        // button style dims the label to ~30% while held, which on a pale
+        // background made pills look like they were disappearing mid-tap.
+        .buttonStyle(.plain)
     }
 
     // MARK: - Interest selection
