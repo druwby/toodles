@@ -420,6 +420,9 @@ struct ProfileSetupView: View {
 
         // Flip ContentView past the gate even if Firestore/Storage fail — critical
         // for demo-day survival. ContentView only checks profilePhotoUrl is non-empty.
+        // Also cache the profile to UserDefaults so a fresh Appetize simulator
+        // (new build / new session) can fall back to the cache when Firestore
+        // hasn't replicated the write yet.
         let advanceLocally: (String) -> Void = { photoUrl in
             let updated = User(
                 id: uid,
@@ -433,6 +436,7 @@ struct ProfileSetupView: View {
                 createdAt: userViewModel.currentUser?.createdAt ?? Date()
             )
             userViewModel.currentUser = updated
+            userViewModel.cacheProfile(updated)
         }
 
         let persistToFirestore: (String) -> Void = { photoUrl in

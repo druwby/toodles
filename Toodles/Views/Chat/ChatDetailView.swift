@@ -11,13 +11,37 @@ struct ChatMessage: Identifiable {
 final class ChatViewModel: ObservableObject {
     @Published var messages: [ChatMessage] = []
     let chatId: String
+    /// Other person's name — used to decide whether this is a demo chat with a
+    /// known seeded peer (Emma / Sophia / etc) versus a real Firestore chat.
+    let otherName: String
     private var listener: ListenerRegistration?
 
-    init(chatId: String) { self.chatId = chatId }
+    init(chatId: String, otherName: String = "") {
+        self.chatId = chatId
+        self.otherName = otherName
+    }
+
+    private var demoPeerKey: String? {
+        let key = otherName.components(separatedBy: " ").first?.lowercased() ?? ""
+        return Self.knownDemoPeerKeys.contains(key) ? key : nil
+    }
+
+    private static let knownDemoPeerKeys: Set<String> = [
+        "emma", "sophia", "olivia", "mia", "hannah", "riley"
+    ]
 
     func start() {
+        // Legacy path — pre-seeded demo_match_<key> chat IDs from MatchesViewModel.demoMatches.
         if chatId.hasPrefix("demo_match_") {
             self.messages = Self.demoMessages(for: chatId)
+            return
+        }
+
+        // Dynamically-created match with a demo peer (e.g. user Liked Emma in a
+        // call). ChatDetailView was opened with a UUID chat id but the other
+        // party is one of our demo peers — serve the scripted thread for them.
+        if let key = demoPeerKey {
+            self.messages = Self.demoMessages(for: "demo_match_\(key)")
             return
         }
 
@@ -44,7 +68,8 @@ final class ChatViewModel: ObservableObject {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
 
-        if chatId.hasPrefix("demo_match_") {
+        // Demo threads — append locally so Send works during the demo.
+        if chatId.hasPrefix("demo_match_") || demoPeerKey != nil {
             let msg = ChatMessage(
                 id: UUID().uuidString,
                 senderId: senderId,
@@ -124,7 +149,7 @@ struct ChatDetailView: View {
         self.otherName = otherName
         self.otherPhotoUrl = otherPhotoUrl
         self.otherSubtitle = otherSubtitle
-        _viewModel = StateObject(wrappedValue: ChatViewModel(chatId: chatId))
+        _viewModel = StateObject(wrappedValue: ChatViewModel(chatId: chatId, otherName: otherName))
     }
 
     var body: some View {

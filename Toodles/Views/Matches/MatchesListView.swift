@@ -17,9 +17,18 @@ final class MatchesViewModel: ObservableObject {
     @Published var rows: [MatchRow] = []
     @Published var isLoading = false
 
+    /// Only this specific account gets the pre-seeded demo matches/chats. Any
+    /// other signed-in account starts with an empty Matches tab and fills it
+    /// dynamically as they Like people via the Start Chatting flow.
+    private static let demoSeedEmail = "dshtansky2@csu.fullerton.edu"
+
+    private static func shouldSeedDemoMatches() -> Bool {
+        (AuthManager.shared.currentEmail ?? "").lowercased() == demoSeedEmail
+    }
+
     func load() {
         guard let uid = AuthManager.shared.currentUID else {
-            self.rows = Self.demoMatches()
+            self.rows = Self.shouldSeedDemoMatches() ? Self.demoMatches() : []
             return
         }
 
@@ -33,29 +42,39 @@ final class MatchesViewModel: ObservableObject {
                           let b = d["user_b_id"] as? String,
                           let status = d["status"] as? String else { return nil }
                     let other = a == uid ? b : a
-                    let name: String
+                    let rawName: String
                     if other.hasPrefix("demo_") {
-                        name = other
+                        rawName = other
                             .replacingOccurrences(of: "demo_", with: "")
                             .replacingOccurrences(of: "_", with: " ")
                     } else {
-                        name = other
+                        rawName = other
                     }
                     let ts = (d["matched_at"] as? Timestamp)?.dateValue() ?? Date()
+
+                    // If the other party is one of our demo peers, enrich the
+                    // row with the peer's real photo + subtitle so dynamically
+                    // created matches (from Likes in the call) look identical
+                    // to the pre-seeded demo matches.
+                    let enrichment = DemoPeerPool.all.first { $0.name == rawName }
+
                     return MatchRow(
                         id: id,
-                        otherName: name,
+                        otherName: rawName,
                         status: status,
                         timestamp: ts,
-                        subtitle: nil,
-                        photoUrl: nil
+                        subtitle: enrichment?.subtitle,
+                        photoUrl: enrichment?.photoUrl
                     )
                 }
 
-                // Demo seed: always append the mock girls so the Matches + Chats tabs
-                // have content during the capstone presentation. Firestore rows appear
-                // first; demo mocks follow.
-                self.rows = firestoreRows + Self.demoMatches()
+                // Pre-seed demo matches ONLY for the demo account. Firestore rows
+                // come first, then seed. This ensures new accounts start empty.
+                if Self.shouldSeedDemoMatches() {
+                    self.rows = firestoreRows + Self.demoMatches()
+                } else {
+                    self.rows = firestoreRows
+                }
                 self.isLoading = false
             }
         }
@@ -123,11 +142,11 @@ final class MatchesViewModel: ObservableObject {
 struct MatchesListView: View {
     @StateObject private var viewModel = MatchesViewModel()
 
-    /// Only show matches worth engaging with. "Rejected" (Passed) rows are hidden
-    /// — a user who passed on someone doesn't need to see them in the Matches tab.
-    /// Keeps the list focused and avoids clutter.
+    /// Only show matches the user actually wants to engage with — hide both
+    /// Passed (rejected) and Reported rows. A user has no reason to keep
+    /// scrolling past people they've explicitly declined.
     private var visibleRows: [MatchRow] {
-        viewModel.rows.filter { $0.status != "rejected" }
+        viewModel.rows.filter { $0.status != "rejected" && $0.status != "reported" }
     }
 
     var body: some View {

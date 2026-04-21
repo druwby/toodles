@@ -49,13 +49,23 @@ struct SignupView: View {
                             }
                         }
 
-                        TextField("", text: $viewModel.displayName, prompt: Text("Display name").foregroundStyle(.gray))
-                            .textContentType(.name)
-                            .foregroundStyle(.black)
-                            .tint(.black)
-                            .padding()
-                            .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        // First + Last name — matches Hinge/Tinder convention.
+                        HStack(spacing: 10) {
+                            TextField("", text: $viewModel.firstName, prompt: Text("First name").foregroundStyle(.gray))
+                                .textContentType(.givenName)
+                                .foregroundStyle(.black)
+                                .tint(.black)
+                                .padding()
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            TextField("", text: $viewModel.lastName, prompt: Text("Last name").foregroundStyle(.gray))
+                                .textContentType(.familyName)
+                                .foregroundStyle(.black)
+                                .tint(.black)
+                                .padding()
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
 
                         SecureField("", text: $viewModel.password, prompt: Text("Password (min 8 chars)").foregroundStyle(.gray))
                             .textContentType(.newPassword)
@@ -141,6 +151,7 @@ struct SignupView: View {
         !viewModel.email.isEmpty &&
         !viewModel.password.isEmpty &&
         viewModel.password.count >= 8 &&
-        !viewModel.displayName.isEmpty
+        !viewModel.firstName.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !viewModel.lastName.trimmingCharacters(in: .whitespaces).isEmpty
     }
 }

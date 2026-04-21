@@ -5,6 +5,10 @@ import Combine
 final class UserViewModel: ObservableObject {
     @Published var email: String = ""
     @Published var password: String = ""
+    @Published var firstName: String = ""
+    @Published var lastName: String = ""
+    /// Kept for back-compat with flows that still bind to displayName. New
+    /// signup flow uses first/last and joins them for storage.
     @Published var displayName: String = ""
     @Published var isAuthenticated: Bool = false
     @Published var errorMessage: String?
@@ -13,9 +17,6 @@ final class UserViewModel: ObservableObject {
     private let authManager = AuthManager.shared
     private let firestoreService = FirestoreService.shared
 
-    /// Hard cap on how long ContentView will wait for the Firestore profile to
-    /// load before we fabricate a stub. Keeps Appetize sessions snappy even when
-    /// Firestore is slow or offline.
     private static let profileLoadTimeoutSeconds: Double = 5.0
 
     init() {
@@ -75,25 +76,35 @@ final class UserViewModel: ObservableObject {
 
     // MARK: - Create Firestore profile
     private func createUserProfile(uid: String) {
-        let fallbackName = email.components(separatedBy: "@").first ?? "User"
-        let chosenName = displayName.isEmpty ? fallbackName : displayName
+        let trimmedFirst = firstName.trimmingCharacters(in: .whitespaces)
+        let trimmedLast  = lastName.trimmingCharacters(in: .whitespaces)
+        let combinedName = [trimmedFirst, trimmedLast]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        let fallbackFromEmail = email.components(separatedBy: "@").first ?? "User"
+        let finalName = combinedName.isEmpty
+            ? (displayName.isEmpty ? fallbackFromEmail : displayName)
+            : combinedName
+
         let userData: [String: Any] = [
             "uid": uid,
             "email": email,
-            "display_name": chosenName,
+            "display_name": finalName,
+            "first_name":  trimmedFirst,
+            "last_name":   trimmedLast,
             "bio": "",
             "interests": [],
             "profile_photo_url": "",
             "trust_score": 100,
-            "verified": true,   // auto-verified via email domain check
+            "verified": true,
             "created_at": Timestamp()
         ]
         firestoreService.createUser(uid: uid, data: userData)
-        // Populate local state immediately so the tabbed UI has something to show
-        currentUser = User(
+        let stubbed = User(
             id: uid,
             email: email,
-            displayName: chosenName,
+            displayName: finalName,
             bio: "",
             interests: [],
             profilePhotoUrl: nil,
@@ -101,17 +112,21 @@ final class UserViewModel: ObservableObject {
             verified: true,
             createdAt: Date()
         )
+        currentUser = stubbed
+        cacheProfile(stubbed)
     }
 
     // MARK: - Load profile
     func loadProfile(uid: String) {
-        // Fire a fallback stub in N seconds if Firestore never responds. This
-        // prevents the ContentView splash from hanging forever on a slow Firestore
-        // read or a missing user document.
+        // Timeout: if Firestore never calls back, fall back to cache or stub.
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.profileLoadTimeoutSeconds) { [weak self] in
             guard let self = self else { return }
             if self.isAuthenticated && self.currentUser == nil {
-                self.currentUser = self.stubUser(uid: uid)
+                if let cached = self.cachedProfile(uid: uid) {
+                    self.currentUser = cached
+                } else {
+                    self.currentUser = self.stubUser(uid: uid)
+                }
             }
         }
 
@@ -120,7 +135,7 @@ final class UserViewModel: ObservableObject {
                 guard let self = self else { return }
 
                 if let data = data {
-                    self.currentUser = User(
+                    let user = User(
                         id: uid,
                         email: data["email"] as? String ?? self.authManager.currentEmail ?? "",
                         displayName: data["display_name"] as? String ?? "",
@@ -131,21 +146,21 @@ final class UserViewModel: ObservableObject {
                         verified: data["verified"] as? Bool ?? false,
                         createdAt: (data["created_at"] as? Timestamp)?.dateValue() ?? Date()
                     )
+                    self.currentUser = user
+                    self.cacheProfile(user)
+                } else if let cached = self.cachedProfile(uid: uid) {
+                    // Firestore read came back empty — fall back to the local
+                    // UserDefaults cache of the last-known profile so the user
+                    // doesn't get stuck on the setup gate across re-deploys.
+                    self.currentUser = cached
                 } else {
-                    // Firestore returned nil — the user doc doesn't exist (e.g. a
-                    // signup where the createUser write was lost, or an edge Firestore
-                    // read failure). Fall back to a stub so ProfileSetupView picks up
-                    // and the user can complete their profile from scratch.
                     self.currentUser = self.stubUser(uid: uid)
                 }
             }
         }
     }
 
-    /// Minimal `User` built from the in-memory auth info. Used whenever
-    /// Firestore can't tell us who the signed-in user is — the important
-    /// thing is that `profilePhotoUrl` is nil, so ContentView routes the
-    /// user to `ProfileSetupView` to fill in the details.
+    /// Minimal `User` built from the in-memory auth info.
     private func stubUser(uid: String) -> User {
         let email = authManager.currentEmail ?? self.email
         let fallbackName = email.components(separatedBy: "@").first ?? ""
@@ -160,5 +175,47 @@ final class UserViewModel: ObservableObject {
             verified: true,
             createdAt: Date()
         )
+    }
+
+    // MARK: - Local cache (UserDefaults)
+
+    /// UserDefaults cache — survives app launches, not just the in-memory auth
+    /// session. When a re-deploy spins up a brand-new Appetize simulator and
+    /// Firestore is slow or the write hasn't propagated, the cache keeps the
+    /// setup gate from re-triggering repeatedly.
+    func cacheProfile(_ user: User) {
+        guard let uid = user.id else { return }
+        let payload: [String: Any] = [
+            "email":             user.email,
+            "display_name":      user.displayName,
+            "bio":               user.bio,
+            "interests":         user.interests,
+            "profile_photo_url": user.profilePhotoUrl ?? "",
+            "trust_score":       user.trustScore,
+            "verified":          user.verified
+        ]
+        UserDefaults.standard.set(payload, forKey: Self.cacheKey(uid: uid))
+    }
+
+    private func cachedProfile(uid: String) -> User? {
+        guard let data = UserDefaults.standard.dictionary(forKey: Self.cacheKey(uid: uid)) else {
+            return nil
+        }
+        let photo = data["profile_photo_url"] as? String
+        return User(
+            id: uid,
+            email: data["email"] as? String ?? authManager.currentEmail ?? "",
+            displayName: data["display_name"] as? String ?? "",
+            bio: data["bio"] as? String ?? "",
+            interests: data["interests"] as? [String] ?? [],
+            profilePhotoUrl: (photo?.isEmpty == false) ? photo : nil,
+            trustScore: data["trust_score"] as? Int ?? 100,
+            verified: data["verified"] as? Bool ?? true,
+            createdAt: Date()
+        )
+    }
+
+    private static func cacheKey(uid: String) -> String {
+        "toodles_profile_\(uid)"
     }
 }
