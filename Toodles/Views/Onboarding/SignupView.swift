@@ -5,71 +5,104 @@ struct SignupView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [.blue, .cyan.opacity(0.6)], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
+            AmbientOrbBackground(intensity: .heavy)
 
             ScrollView {
                 VStack(spacing: 20) {
-                    Text("Create your account")
-                        .font(.largeTitle.bold())
-                        .foregroundStyle(.white)
-                        .padding(.top, 40)
+                    VStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.bottom, 2)
+                        Text("Create your account")
+                            .font(.system(size: 30, weight: .black))
+                            .foregroundStyle(.white)
+                        Text("Use your @csu.fullerton.edu or @fullerton.edu email")
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.85))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.top, 32)
+                    .padding(.horizontal, 16)
 
-                    Text("Use your @csu.fullerton.edu or @fullerton.edu email")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.85))
-                        .multilineTextAlignment(.center)
+                    VStack(spacing: 14) {
+                        // Email + domain chips
+                        VStack(spacing: 0) {
+                            TextField("", text: $viewModel.email, prompt: Text("Email").foregroundStyle(.gray))
+                                .keyboardType(.emailAddress)
+                                .textContentType(.emailAddress)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .padding()
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                    // Email field with domain autofill
-                    VStack(spacing: 0) {
-                        TextField("Email", text: $viewModel.email)
-                            .keyboardType(.emailAddress)
-                            .textContentType(.emailAddress)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
+                            if viewModel.email.contains("@") && !viewModel.email.hasSuffix(".edu") {
+                                HStack(spacing: 8) {
+                                    domainChip("@csu.fullerton.edu")
+                                    domainChip("@fullerton.edu")
+                                    Spacer()
+                                }
+                                .padding(.top, 8)
+                            }
+                        }
+
+                        TextField("", text: $viewModel.displayName, prompt: Text("Display name").foregroundStyle(.gray))
+                            .textContentType(.name)
                             .padding()
-                            .background(.white)
+                            .background(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                        // Domain suggestion chips — appear when @ is typed
-                        if viewModel.email.contains("@") && !viewModel.email.hasSuffix(".edu") {
-                            HStack(spacing: 8) {
-                                domainChip("@csu.fullerton.edu")
-                                domainChip("@fullerton.edu")
-                            }
-                            .padding(.top, 8)
-                        }
-                    }
-
-                    Group {
-                        TextField("Display name", text: $viewModel.displayName)
-                            .textContentType(.name)
-
-                        SecureField("Password (min 8 chars)", text: $viewModel.password)
+                        SecureField("", text: $viewModel.password, prompt: Text("Password (min 8 chars)").foregroundStyle(.gray))
                             .textContentType(.newPassword)
+                            .padding()
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-                    .padding()
-                    .background(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal, 24)
 
                     if let err = viewModel.errorMessage {
                         Text(err)
                             .font(.callout)
-                            .foregroundStyle(.red)
-                            .padding(.horizontal)
-                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color.red.opacity(0.85))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .padding(.horizontal, 24)
                     }
 
-                    Button("Create Account") {
+                    Button {
                         viewModel.signup()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text("Create Account")
+                                .font(.title3.bold())
+                            Image(systemName: "arrow.right")
+                                .font(.body.bold())
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.98, green: 0.58, blue: 0.12),
+                                    Color(red: 0.98, green: 0.42, blue: 0.40)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .clipShape(Capsule())
+                        .shadow(color: Color(red: 0.98, green: 0.45, blue: 0.30).opacity(0.55), radius: 14, y: 8)
                     }
-                    .buttonStyle(ToodlesPrimaryButtonStyle())
                     .disabled(!formValid)
                     .opacity(formValid ? 1 : 0.5)
+                    .padding(.horizontal, 24)
 
-                    Spacer()
+                    Spacer(minLength: 24)
                 }
-                .padding(.horizontal, 24)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -78,7 +111,6 @@ struct SignupView: View {
 
     private func domainChip(_ domain: String) -> some View {
         Button {
-            // Replace everything after @ with the selected domain
             if let atIndex = viewModel.email.firstIndex(of: "@") {
                 viewModel.email = String(viewModel.email[viewModel.email.startIndex..<atIndex]) + domain
             } else {
@@ -90,7 +122,11 @@ struct SignupView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(ToodlesTheme.headerBlue)
+                .background(.ultraThinMaterial)
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                )
                 .clipShape(Capsule())
         }
     }

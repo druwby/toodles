@@ -33,13 +33,13 @@ struct ContentView: View {
 
     private var loadingSplash: some View {
         ZStack {
-            ToodlesTheme.bodyGradient.ignoresSafeArea()
+            AmbientOrbBackground(intensity: .standard)
             VStack(spacing: 18) {
                 Image(systemName: "video.circle.fill")
                     .font(.system(size: 72))
                     .foregroundStyle(.white)
                 Text("Toodles")
-                    .font(.system(size: 32, weight: .bold))
+                    .font(.system(size: 32, weight: .black))
                     .foregroundStyle(.white)
                 ProgressView()
                     .tint(.white)

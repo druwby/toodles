@@ -24,7 +24,7 @@ struct ProfileSetupView: View {
 
     var body: some View {
         ZStack {
-            ToodlesTheme.bodyGradient.ignoresSafeArea()
+            AmbientOrbBackground(intensity: .heavy)
 
             ScrollView {
                 VStack(spacing: 22) {

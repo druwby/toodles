@@ -7,11 +7,6 @@ struct OnboardingView: View {
     @State private var pulse1: CGFloat = 1.0
     @State private var pulse2: CGFloat = 1.0
 
-    // Ambient background orb drift (fakes a mesh-gradient feel on iOS 17)
-    @State private var orb1Offset: CGSize = CGSize(width: -80, height: -120)
-    @State private var orb2Offset: CGSize = CGSize(width: 100,  height: 220)
-    @State private var orb3Offset: CGSize = CGSize(width: -140, height: 240)
-
     // Staggered reveal
     @State private var heroVisible = false
     @State private var featuresVisible = false
@@ -20,7 +15,7 @@ struct OnboardingView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                backgroundLayer
+                AmbientOrbBackground(intensity: .standard)
 
                 VStack(spacing: 0) {
                     Spacer(minLength: 40)
@@ -47,52 +42,6 @@ struct OnboardingView: View {
             .onAppear { startAnimations() }
         }
         .tint(.white)
-    }
-
-    // MARK: - Background (moving blurred color orbs = modern mesh-gradient feel)
-
-    private var backgroundLayer: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.04, green: 0.05, blue: 0.16),
-                    Color(red: 0.09, green: 0.09, blue: 0.28),
-                    Color(red: 0.13, green: 0.10, blue: 0.34)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
-            // Blue orb
-            Circle()
-                .fill(Color(red: 0.42, green: 0.62, blue: 1.0).opacity(0.55))
-                .frame(width: 320, height: 320)
-                .blur(radius: 80)
-                .offset(orb1Offset)
-
-            // Pink/coral orb (brand Like color)
-            Circle()
-                .fill(Color(red: 0.98, green: 0.42, blue: 0.58).opacity(0.38))
-                .frame(width: 360, height: 360)
-                .blur(radius: 100)
-                .offset(orb2Offset)
-
-            // Orange orb (brand accent)
-            Circle()
-                .fill(Color(red: 0.98, green: 0.58, blue: 0.12).opacity(0.28))
-                .frame(width: 260, height: 260)
-                .blur(radius: 80)
-                .offset(orb3Offset)
-
-            // A very subtle noise/darken overlay — gives depth and stops the orbs from looking washed out
-            LinearGradient(
-                colors: [Color.black.opacity(0.10), Color.black.opacity(0.35)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-        }
     }
 
     // MARK: - Hero
@@ -272,17 +221,6 @@ struct OnboardingView: View {
         }
         withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true).delay(0.4)) {
             pulse2 = 1.12
-        }
-
-        // Slow orb drift — gives the background a living, mesh-gradient feel
-        withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) {
-            orb1Offset = CGSize(width: 100, height: -60)
-        }
-        withAnimation(.easeInOut(duration: 11).repeatForever(autoreverses: true)) {
-            orb2Offset = CGSize(width: -100, height: 40)
-        }
-        withAnimation(.easeInOut(duration: 13).repeatForever(autoreverses: true)) {
-            orb3Offset = CGSize(width: 160, height: 220)
         }
     }
 }
