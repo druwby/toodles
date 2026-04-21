@@ -317,45 +317,44 @@ struct ProfileSetupView: View {
     }
 
     private func pillButton(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.callout.bold())
-                .foregroundStyle(selected ? .white : ToodlesTheme.avatarText)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(
-                    selected
-                        ? AnyShapeStyle(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.98, green: 0.58, blue: 0.12),
-                                    Color(red: 0.98, green: 0.42, blue: 0.40)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
+        // Pure Text + .onTapGesture — no SwiftUI Button. Button wrappers kept
+        // collapsing the middle pill's frame on some layouts, and .plain
+        // buttonStyle didn't cure it. This has no button-state opacity / layout
+        // quirks at all: a styled Text that responds to taps.
+        Text(title)
+            .font(.callout.bold())
+            .foregroundStyle(selected ? .white : ToodlesTheme.avatarText)
+            .frame(maxWidth: .infinity, minHeight: 42)
+            .background(
+                selected
+                    ? AnyShapeStyle(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.98, green: 0.58, blue: 0.12),
+                                Color(red: 0.98, green: 0.42, blue: 0.40)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
                         )
-                        // Darker grayed-blue fill so unselected pills are
-                        // clearly visible against the white card surface.
-                        : AnyShapeStyle(Color(red: 0.83, green: 0.87, blue: 0.94))
-                )
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(
-                            selected
-                                ? Color.white.opacity(0.6)
-                                : ToodlesTheme.avatarText.opacity(0.35),
-                            lineWidth: selected ? 1 : 1.5
-                        )
-                )
-                .scaleEffect(selected ? 1.03 : 1.0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)
-        }
-        // .plain keeps the label fully opaque during the press. The default
-        // button style dims the label to ~30% while held, which on a pale
-        // background made pills look like they were disappearing mid-tap.
-        .buttonStyle(.plain)
+                    )
+                    : AnyShapeStyle(Color(red: 0.83, green: 0.87, blue: 0.94))
+            )
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(
+                        selected
+                            ? Color.white.opacity(0.6)
+                            : ToodlesTheme.avatarText.opacity(0.35),
+                        lineWidth: selected ? 1 : 1.5
+                    )
+            )
+            .scaleEffect(selected ? 1.03 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)
+            .contentShape(Capsule())
+            .onTapGesture {
+                action()
+            }
     }
 
     // MARK: - Interest selection
