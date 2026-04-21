@@ -1,28 +1,44 @@
 import SwiftUI
 
-/// The demo peer pool. Mirrors the girls in `MatchesViewModel.demoMatches`
-/// so the matching flow, post-session feedback, and Matches/Chats tabs all
-/// share the same characters — continuity across the demo narrative.
+/// The demo peer pool. Mixed-gender so the matchmaking "Show me" filter
+/// actually has meaningful effect. Each peer's gender is used to decide
+/// whether they're shown to the current user.
 struct DemoPeer {
     let name: String
     let subtitle: String
     let photoUrl: String
+    let gender: Gender
 }
 
 enum DemoPeerPool {
     static let all: [DemoPeer] = [
-        DemoPeer(name: "Emma Chen",         subtitle: "Junior · Nursing",        photoUrl: "https://randomuser.me/api/portraits/women/44.jpg"),
-        DemoPeer(name: "Sophia Rodriguez",  subtitle: "Sophomore · Business",    photoUrl: "https://randomuser.me/api/portraits/women/68.jpg"),
-        DemoPeer(name: "Olivia Kim",        subtitle: "Senior · Art History",    photoUrl: "https://randomuser.me/api/portraits/women/22.jpg"),
-        DemoPeer(name: "Mia Patel",         subtitle: "Senior · Biology",        photoUrl: "https://randomuser.me/api/portraits/women/90.jpg"),
-        DemoPeer(name: "Hannah Foster",     subtitle: "Junior · Communications", photoUrl: "https://randomuser.me/api/portraits/women/65.jpg"),
-        DemoPeer(name: "Riley Park",        subtitle: "Senior · Kinesiology",    photoUrl: "https://randomuser.me/api/portraits/women/17.jpg"),
+        // Women
+        DemoPeer(name: "Emma Chen",         subtitle: "Junior · Nursing",        photoUrl: "https://randomuser.me/api/portraits/women/44.jpg", gender: .woman),
+        DemoPeer(name: "Sophia Rodriguez",  subtitle: "Sophomore · Business",    photoUrl: "https://randomuser.me/api/portraits/women/68.jpg", gender: .woman),
+        DemoPeer(name: "Olivia Kim",        subtitle: "Senior · Art History",    photoUrl: "https://randomuser.me/api/portraits/women/22.jpg", gender: .woman),
+        DemoPeer(name: "Mia Patel",         subtitle: "Senior · Biology",        photoUrl: "https://randomuser.me/api/portraits/women/90.jpg", gender: .woman),
+        DemoPeer(name: "Hannah Foster",     subtitle: "Junior · Communications", photoUrl: "https://randomuser.me/api/portraits/women/65.jpg", gender: .woman),
+        DemoPeer(name: "Riley Park",        subtitle: "Senior · Kinesiology",    photoUrl: "https://randomuser.me/api/portraits/women/17.jpg", gender: .woman),
+        // Men
+        DemoPeer(name: "Ethan Ross",        subtitle: "Junior · Physics",        photoUrl: "https://randomuser.me/api/portraits/men/45.jpg",   gender: .man),
+        DemoPeer(name: "Lucas Martinez",    subtitle: "Senior · CS",             photoUrl: "https://randomuser.me/api/portraits/men/32.jpg",   gender: .man),
+        DemoPeer(name: "Noah Williams",     subtitle: "Junior · Economics",      photoUrl: "https://randomuser.me/api/portraits/men/64.jpg",   gender: .man),
+        DemoPeer(name: "Aiden Cho",         subtitle: "Senior · Mechanical Eng", photoUrl: "https://randomuser.me/api/portraits/men/75.jpg",   gender: .man),
     ]
 
-    /// Deterministic round-robin through the pool. First session is Emma,
-    /// matching the Matches tab's top row, so the narrative is consistent.
-    static func pick(session index: Int) -> DemoPeer {
-        all[index % all.count]
+    /// Return the subset of peers that match the user's `Show me` preference.
+    static func visibleTo(showMe: ShowMe?) -> [DemoPeer] {
+        let filter = showMe ?? .everyone
+        let visible = all.filter { filter.matches($0.gender) }
+        return visible.isEmpty ? all : visible
+    }
+
+    /// Deterministic round-robin through the visible peers for the given user
+    /// preference. First session is the first peer, which — for a "show me
+    /// women" user — is Emma, matching the pre-seeded Matches tab.
+    static func pick(session index: Int, showMe: ShowMe?) -> DemoPeer {
+        let pool = visibleTo(showMe: showMe)
+        return pool[index % pool.count]
     }
 }
 
@@ -33,7 +49,7 @@ struct StartChattingView: View {
     @State private var phase: Phase = .checkingTrust
     @State private var showCall = false
     @State private var sessionIndex: Int = 0
-    @State private var peer: DemoPeer = DemoPeerPool.pick(session: 0)
+    @State private var peer: DemoPeer = DemoPeerPool.all[0]
 
     @State private var ring1Scale: CGFloat = 1.0
     @State private var ring2Scale: CGFloat = 1.0
@@ -282,13 +298,23 @@ struct StartChattingView: View {
     // MARK: - Flow
 
     private func startNextMatch() {
-        // Round-robin to the next demo peer, then bump sessionIndex which
-        // re-triggers `.task(id:)` → runFlow() → matchmaking → call.
+        // Round-robin through the peers that match the user's Show me filter.
+        // Incrementing sessionIndex re-triggers .task(id:) -> runFlow() ->
+        // matchmaking -> call.
         sessionIndex += 1
-        peer = DemoPeerPool.pick(session: sessionIndex)
+        peer = DemoPeerPool.pick(session: sessionIndex, showMe: userViewModel.currentUser?.showMe)
     }
 
     private func runFlow() async {
+        // Make sure the peer reflects the user's current "Show me" preference
+        // (important on the very first run — we defaulted to all[0] before
+        // the view had access to userViewModel).
+        if sessionIndex == 0 {
+            await MainActor.run {
+                peer = DemoPeerPool.pick(session: 0, showMe: userViewModel.currentUser?.showMe)
+            }
+        }
+
         // Radar animations — start fresh for every session.
         ring1Scale = 1.0; ring2Scale = 1.0; ring3Scale = 1.0
         withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) {

@@ -24,11 +24,14 @@ struct ContentView: View {
         }
     }
 
-    /// True when the signed-in user hasn't uploaded a profile photo yet.
+    /// True when the signed-in user hasn't completed the Hinge/Tinder-style
+    /// onboarding — needs a photo, a gender identity, and a match preference.
     private var needsProfileSetup: Bool {
         guard let user = userViewModel.currentUser else { return false }
-        let photo = user.profilePhotoUrl ?? ""
-        return photo.isEmpty
+        let photoMissing  = (user.profilePhotoUrl ?? "").isEmpty
+        let genderMissing = user.gender == nil
+        let showMeMissing = user.showMe == nil
+        return photoMissing || genderMissing || showMeMissing
     }
 
     private var loadingSplash: some View {

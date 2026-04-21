@@ -87,6 +87,10 @@ final class UserViewModel: ObservableObject {
             ? (displayName.isEmpty ? fallbackFromEmail : displayName)
             : combinedName
 
+        // gender + show_me are deliberately NOT set here — they're collected
+        // on the ProfileSetupView gate after signup so the account creation
+        // call is fast and the gender/showMe selection is part of the same
+        // "complete your profile" flow as the photo.
         let userData: [String: Any] = [
             "uid": uid,
             "email": email,
@@ -110,7 +114,9 @@ final class UserViewModel: ObservableObject {
             profilePhotoUrl: nil,
             trustScore: 100,
             verified: true,
-            createdAt: Date()
+            createdAt: Date(),
+            gender: nil,
+            showMe: nil
         )
         currentUser = stubbed
         cacheProfile(stubbed)
@@ -144,7 +150,9 @@ final class UserViewModel: ObservableObject {
                         profilePhotoUrl: data["profile_photo_url"] as? String,
                         trustScore: data["trust_score"] as? Int ?? 100,
                         verified: data["verified"] as? Bool ?? false,
-                        createdAt: (data["created_at"] as? Timestamp)?.dateValue() ?? Date()
+                        createdAt: (data["created_at"] as? Timestamp)?.dateValue() ?? Date(),
+                        gender: (data["gender"] as? String).flatMap { Gender(rawValue: $0) },
+                        showMe: (data["show_me"] as? String).flatMap { ShowMe(rawValue: $0) }
                     )
                     self.currentUser = user
                     self.cacheProfile(user)
@@ -173,7 +181,9 @@ final class UserViewModel: ObservableObject {
             profilePhotoUrl: nil,
             trustScore: 100,
             verified: true,
-            createdAt: Date()
+            createdAt: Date(),
+            gender: nil,
+            showMe: nil
         )
     }
 
@@ -185,7 +195,7 @@ final class UserViewModel: ObservableObject {
     /// setup gate from re-triggering repeatedly.
     func cacheProfile(_ user: User) {
         guard let uid = user.id else { return }
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "email":             user.email,
             "display_name":      user.displayName,
             "bio":               user.bio,
@@ -194,6 +204,8 @@ final class UserViewModel: ObservableObject {
             "trust_score":       user.trustScore,
             "verified":          user.verified
         ]
+        if let g = user.gender?.rawValue { payload["gender"] = g }
+        if let s = user.showMe?.rawValue { payload["show_me"] = s }
         UserDefaults.standard.set(payload, forKey: Self.cacheKey(uid: uid))
     }
 
@@ -211,7 +223,9 @@ final class UserViewModel: ObservableObject {
             profilePhotoUrl: (photo?.isEmpty == false) ? photo : nil,
             trustScore: data["trust_score"] as? Int ?? 100,
             verified: data["verified"] as? Bool ?? true,
-            createdAt: Date()
+            createdAt: Date(),
+            gender: (data["gender"] as? String).flatMap { Gender(rawValue: $0) },
+            showMe: (data["show_me"] as? String).flatMap { ShowMe(rawValue: $0) }
         )
     }
 

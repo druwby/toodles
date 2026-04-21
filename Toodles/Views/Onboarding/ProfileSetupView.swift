@@ -2,9 +2,11 @@ import SwiftUI
 import PhotosUI
 
 /// Hard-gate shown immediately after first sign-up (or on any login where the
-/// user hasn't uploaded a profile photo yet). Mirrors the Hinge/Tinder pattern
-/// where a user cannot browse, match, or chat without a visible face — in
-/// Toodles this is load-bearing for the "verified real students" product thesis.
+/// user hasn't completed the Hinge/Tinder-style onboarding). Collects photo,
+/// first/last name, bio (optional), interests (optional), gender identity,
+/// and match preference — all required before the user can reach the main
+/// tabs. This is the page that makes Toodles a real dating app instead of a
+/// chat roulette.
 struct ProfileSetupView: View {
     @EnvironmentObject var userViewModel: UserViewModel
 
@@ -12,6 +14,8 @@ struct ProfileSetupView: View {
     @State private var lastName: String = ""
     @State private var bio: String = ""
     @State private var selectedInterests: Set<String> = []
+    @State private var selectedGender: Gender?
+    @State private var selectedShowMe: ShowMe?
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var pickedImage: UIImage?
     @State private var isSaving = false
@@ -19,9 +23,6 @@ struct ProfileSetupView: View {
 
     private static let maxInterests = 5
 
-    /// Curated interest pool — the tags Hinge/Tinder-style apps surface for
-    /// college-aged users. Kept flat (no categories) for a cleaner grid; ~22
-    /// options covers the breadth without overwhelming the user.
     private static let interestPool: [InterestTag] = [
         .init(name: "Coffee",         emoji: "☕️"),
         .init(name: "Hiking",         emoji: "🥾"),
@@ -60,8 +61,11 @@ struct ProfileSetupView: View {
         !lastName.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    private var genderFilled: Bool { selectedGender != nil }
+    private var showMeFilled: Bool { selectedShowMe != nil }
+
     private var canContinue: Bool {
-        photoIsSet && firstNameFilled && lastNameFilled && !isSaving
+        photoIsSet && firstNameFilled && lastNameFilled && genderFilled && showMeFilled && !isSaving
     }
 
     var body: some View {
@@ -72,7 +76,7 @@ struct ProfileSetupView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         header
-                            .padding(.top, 50)
+                            .padding(.top, 42)
 
                         photoPicker
                             .padding(.top, 4)
@@ -82,6 +86,10 @@ struct ProfileSetupView: View {
                             .foregroundStyle(.white.opacity(0.85))
 
                         formCard
+
+                        genderCard
+
+                        showMeCard
 
                         interestCard
 
@@ -103,11 +111,7 @@ struct ProfileSetupView: View {
                     .padding(.horizontal, 20)
                 }
 
-                // Live requirements checklist — always visible so the user knows
-                // exactly what's blocking Continue before they tap it.
                 requirementsStrip
-
-                // Pinned Continue button — always visible regardless of scroll position
                 continueBar
             }
         }
@@ -129,12 +133,12 @@ struct ProfileSetupView: View {
     private var header: some View {
         VStack(spacing: 8) {
             Image(systemName: "person.crop.circle.badge.checkmark")
-                .font(.system(size: 50))
+                .font(.system(size: 44))
                 .foregroundStyle(.white)
             Text("One last thing")
-                .font(.system(size: 30, weight: .black))
+                .font(.system(size: 28, weight: .black))
                 .foregroundStyle(.white)
-            Text("Toodles only shows you to other verified CSUF students — which means we need a photo of you first.")
+            Text("Toodles only shows you to other verified CSUF students. A few quick things first:")
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.9))
                 .multilineTextAlignment(.center)
@@ -149,13 +153,13 @@ struct ProfileSetupView: View {
             ZStack(alignment: .bottomTrailing) {
                 Circle()
                     .fill(Color.white.opacity(0.2))
-                    .frame(width: 160, height: 160)
+                    .frame(width: 150, height: 150)
 
                 if let img = pickedImage {
                     Image(uiImage: img)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 160, height: 160)
+                        .frame(width: 150, height: 150)
                         .clipShape(Circle())
                 } else if let url = userViewModel.currentUser?.profilePhotoUrl,
                           !url.isEmpty,
@@ -165,23 +169,23 @@ struct ProfileSetupView: View {
                     } placeholder: {
                         ProgressView()
                     }
-                    .frame(width: 160, height: 160)
+                    .frame(width: 150, height: 150)
                     .clipShape(Circle())
                 } else {
                     Image(systemName: "camera.fill")
-                        .font(.system(size: 48))
+                        .font(.system(size: 44))
                         .foregroundStyle(.white.opacity(0.9))
                 }
 
                 Circle()
                     .fill(ToodlesTheme.accent)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 40, height: 40)
                     .overlay(
                         Image(systemName: pickedImage != nil ? "checkmark" : "plus")
                             .font(.headline.bold())
                             .foregroundStyle(.white)
                     )
-                    .offset(x: -4, y: -4)
+                    .offset(x: -2, y: -2)
             }
             .overlay(
                 Circle()
@@ -191,7 +195,7 @@ struct ProfileSetupView: View {
         }
     }
 
-    // MARK: - Form card (first name / last name / bio)
+    // MARK: - Name + bio
 
     private var formCard: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -235,7 +239,7 @@ struct ProfileSetupView: View {
                 TextEditor(text: $bio)
                     .foregroundStyle(.black)
                     .tint(.black)
-                    .frame(height: 64)
+                    .frame(height: 54)
                     .padding(6)
                     .background(Color(white: 0.97))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -250,10 +254,93 @@ struct ProfileSetupView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    // MARK: - Interest selection (Hinge/Tinder-style tag grid)
+    // MARK: - Gender card
+
+    private var genderCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("I am a")
+                .font(.caption.bold())
+                .foregroundStyle(.black)
+
+            HStack(spacing: 8) {
+                ForEach(Gender.allCases) { g in
+                    pillButton(
+                        title: g.displayName,
+                        selected: selectedGender == g
+                    ) {
+                        selectedGender = g
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    // MARK: - Show me card
+
+    private var showMeCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Show me")
+                .font(.caption.bold())
+                .foregroundStyle(.black)
+
+            HStack(spacing: 8) {
+                ForEach(ShowMe.allCases) { s in
+                    pillButton(
+                        title: s.displayName,
+                        selected: selectedShowMe == s
+                    ) {
+                        selectedShowMe = s
+                    }
+                }
+            }
+
+            Text("We'll only match you with people who fit.")
+                .font(.caption2)
+                .foregroundStyle(.gray)
+        }
+        .padding(14)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func pillButton(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.callout.bold())
+                .foregroundStyle(selected ? .white : ToodlesTheme.avatarText)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(
+                    selected
+                        ? AnyShapeStyle(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.98, green: 0.58, blue: 0.12),
+                                    Color(red: 0.98, green: 0.42, blue: 0.40)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        : AnyShapeStyle(ToodlesTheme.chipBlue)
+                )
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(selected ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1)
+                )
+                .scaleEffect(selected ? 1.03 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)
+        }
+    }
+
+    // MARK: - Interest selection
 
     private var interestCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Interests")
                     .font(.caption.bold())
@@ -283,14 +370,16 @@ struct ProfileSetupView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    // MARK: - Requirements strip (pinned above Continue)
+    // MARK: - Requirements strip
 
     private var requirementsStrip: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Spacer(minLength: 0)
             requirementCheck(met: photoIsSet,      label: "Photo")
-            requirementCheck(met: firstNameFilled, label: "First name")
-            requirementCheck(met: lastNameFilled,  label: "Last name")
+            requirementCheck(met: firstNameFilled, label: "First")
+            requirementCheck(met: lastNameFilled,  label: "Last")
+            requirementCheck(met: genderFilled,    label: "Gender")
+            requirementCheck(met: showMeFilled,    label: "Show me")
             Spacer(minLength: 0)
         }
         .padding(.vertical, 8)
@@ -298,17 +387,17 @@ struct ProfileSetupView: View {
     }
 
     private func requirementCheck(met: Bool, label: String) -> some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 4) {
             Image(systemName: met ? "checkmark.circle.fill" : "circle")
-                .font(.caption.bold())
+                .font(.caption2.bold())
                 .foregroundStyle(met ? .green : .white.opacity(0.55))
             Text(label)
-                .font(.caption.bold())
+                .font(.caption2.bold())
                 .foregroundStyle(met ? .green : .white.opacity(0.9))
         }
     }
 
-    // MARK: - Continue bar (pinned)
+    // MARK: - Continue bar
 
     private var continueBar: some View {
         VStack(spacing: 0) {
@@ -354,40 +443,35 @@ struct ProfileSetupView: View {
     }
 
     private var whyCopy: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             HStack(spacing: 6) {
                 Image(systemName: "lock.shield.fill")
                     .font(.caption)
-                Text("Photo + name required · bio and interests can be added later")
+                Text("We use this to find you the right matches, never to show others more than you want.")
                     .font(.caption)
             }
             .foregroundStyle(.white.opacity(0.8))
-            Text("Your photo is only visible to other verified CSUF students.")
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.7))
-                .multilineTextAlignment(.center)
+            .multilineTextAlignment(.center)
         }
     }
 
-    // MARK: - Data hydration + save
+    // MARK: - Hydrate + save
 
     private func hydrateFromExistingUser() {
         guard let u = userViewModel.currentUser else { return }
 
-        // Split an existing display name on first space so re-visits don't lose state.
         let parts = u.displayName.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
         if firstName.isEmpty, let f = parts.first { firstName = String(f) }
         if lastName.isEmpty,  parts.count > 1 { lastName = String(parts[1]) }
         if bio.isEmpty { bio = u.bio }
-        if selectedInterests.isEmpty {
-            selectedInterests = Set(u.interests)
-        }
+        if selectedInterests.isEmpty { selectedInterests = Set(u.interests) }
+        if selectedGender == nil { selectedGender = u.gender }
+        if selectedShowMe == nil { selectedShowMe = u.showMe }
     }
 
     private func save() {
         errorMessage = nil
 
-        // Up-front validation — user sees a clear reason if anything is missing.
         guard photoIsSet else {
             errorMessage = "Please add a profile photo to continue."
             return
@@ -400,6 +484,14 @@ struct ProfileSetupView: View {
             errorMessage = "Please enter your last name."
             return
         }
+        guard let gender = selectedGender else {
+            errorMessage = "Please pick your gender."
+            return
+        }
+        guard let showMe = selectedShowMe else {
+            errorMessage = "Please pick who you want to see."
+            return
+        }
         guard let uid = AuthManager.shared.currentUID else {
             errorMessage = "You're not signed in. Try signing in again."
             return
@@ -408,9 +500,6 @@ struct ProfileSetupView: View {
         isSaving = true
         let fullName = "\(firstName.trimmingCharacters(in: .whitespaces)) \(lastName.trimmingCharacters(in: .whitespaces))"
 
-        // Hard cap on isSaving — if the async save stalls (Firebase misconfiguration,
-        // offline Appetize session, etc.), release the spinner after 10 seconds so
-        // the user isn't trapped. Worst case they tap Continue again.
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
             if isSaving {
                 isSaving = false
@@ -418,11 +507,6 @@ struct ProfileSetupView: View {
             }
         }
 
-        // Flip ContentView past the gate even if Firestore/Storage fail — critical
-        // for demo-day survival. ContentView only checks profilePhotoUrl is non-empty.
-        // Also cache the profile to UserDefaults so a fresh Appetize simulator
-        // (new build / new session) can fall back to the cache when Firestore
-        // hasn't replicated the write yet.
         let advanceLocally: (String) -> Void = { photoUrl in
             let updated = User(
                 id: uid,
@@ -433,44 +517,38 @@ struct ProfileSetupView: View {
                 profilePhotoUrl: photoUrl,
                 trustScore: userViewModel.currentUser?.trustScore ?? 100,
                 verified: true,
-                createdAt: userViewModel.currentUser?.createdAt ?? Date()
+                createdAt: userViewModel.currentUser?.createdAt ?? Date(),
+                gender: gender,
+                showMe: showMe
             )
             userViewModel.currentUser = updated
             userViewModel.cacheProfile(updated)
         }
 
+        let initialsAvatarUrl: () -> String = {
+            let seed = fullName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Toodles+User"
+            return "https://api.dicebear.com/9.x/initials/png?seed=\(seed)&backgroundColor=ff6b6b,4dabf7,fa983a,f55a8b&fontWeight=700"
+        }
+
         let persistToFirestore: (String) -> Void = { photoUrl in
-            var data: [String: Any] = [
+            let data: [String: Any] = [
                 "display_name":      fullName,
                 "first_name":        firstName.trimmingCharacters(in: .whitespaces),
                 "last_name":         lastName.trimmingCharacters(in: .whitespaces),
                 "bio":               String(bio.prefix(200)),
                 "interests":         Array(selectedInterests),
-                "profile_photo_url": photoUrl
+                "profile_photo_url": photoUrl,
+                "gender":            gender.rawValue,
+                "show_me":           showMe.rawValue
             ]
             FirestoreService.shared.updateUser(uid: uid, data: data) { _ in
                 DispatchQueue.main.async {
-                    // Regardless of whether Firestore acknowledged — advance locally
-                    // so the UI reflects what the user just saved. Firestore caches
-                    // can race the post-write read, and loading from cache would
-                    // briefly wipe the fields the user just entered.
                     isSaving = false
                     advanceLocally(photoUrl)
                 }
             }
         }
 
-        // Fallback avatar URL — deterministic dicebear "initials" render of the
-        // user's name. Used when Firebase Storage upload fails (common on Appetize
-        // free-tier Firebase projects) so profile_photo_url always ends up being
-        // a real, fetchable URL. Without this, next login sees an empty photo and
-        // the setup gate triggers again.
-        let initialsAvatarUrl: () -> String = {
-            let seed = fullName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Toodles+User"
-            return "https://api.dicebear.com/9.x/initials/png?seed=\(seed)&backgroundColor=ff6b6b,4dabf7,fa983a,f55a8b&fontWeight=700"
-        }
-
-        // Upload photo if the user picked a new one; otherwise reuse any existing URL.
         if let img = pickedImage {
             StorageService.shared.uploadProfilePhoto(uid: uid, image: img) { result in
                 DispatchQueue.main.async {
@@ -478,9 +556,6 @@ struct ProfileSetupView: View {
                     case .success(let url):
                         persistToFirestore(url)
                     case .failure:
-                        // Storage failed — persist with dicebear fallback so the
-                        // gate still passes next login AND the Profile tab renders
-                        // a real avatar instead of a broken image.
                         persistToFirestore(initialsAvatarUrl())
                     }
                 }
@@ -488,14 +563,10 @@ struct ProfileSetupView: View {
         } else if let existing = userViewModel.currentUser?.profilePhotoUrl, !existing.isEmpty {
             persistToFirestore(existing)
         } else {
-            // User didn't pick a photo and doesn't have one on file — fallback to
-            // dicebear so the gate can still be passed.
             persistToFirestore(initialsAvatarUrl())
         }
     }
 
-    /// Pulls the email from AuthManager without triggering a Firestore re-read.
-    /// Local helper for constructing the advance-locally stub.
     private var authManagerEmail: String {
         AuthManager.shared.currentEmail ?? ""
     }
@@ -508,8 +579,6 @@ struct InterestTag: Hashable {
     let emoji: String
 }
 
-/// Two-column flowing grid of selectable interest tags. Mirrors the Hinge/Tinder
-/// pattern — tap to toggle, hits the max, disables further adds.
 private struct InterestTagGrid: View {
     let pool: [InterestTag]
     @Binding var selected: Set<String>
@@ -564,7 +633,6 @@ private struct InterestTagGrid: View {
     }
 }
 
-/// Simple wrapping layout for the interest chips.
 private struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 

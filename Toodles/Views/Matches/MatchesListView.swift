@@ -26,6 +26,18 @@ final class MatchesViewModel: ObservableObject {
         (AuthManager.shared.currentEmail ?? "").lowercased() == demoSeedEmail
     }
 
+    /// Access the current user's Show me preference so the demo seed can
+    /// respect gender filters. Read directly from UserDefaults cache to avoid
+    /// a circular dependency on UserViewModel (ViewModel doesn't have a
+    /// singleton; injecting it into the service would be heavier than needed).
+    private var currentShowMePreference: ShowMe? {
+        guard let uid = AuthManager.shared.currentUID,
+              let data = UserDefaults.standard.dictionary(forKey: "toodles_profile_\(uid)"),
+              let raw = data["show_me"] as? String
+        else { return nil }
+        return ShowMe(rawValue: raw)
+    }
+
     func load() {
         guard let uid = AuthManager.shared.currentUID else {
             self.rows = Self.shouldSeedDemoMatches() ? Self.demoMatches() : []
@@ -68,10 +80,13 @@ final class MatchesViewModel: ObservableObject {
                     )
                 }
 
-                // Pre-seed demo matches ONLY for the demo account. Firestore rows
-                // come first, then seed. This ensures new accounts start empty.
+                // Pre-seed demo matches ONLY for the demo account, and only
+                // peers that match the current user's Show me preference.
+                // Firestore rows come first, then seed. New accounts start
+                // with whatever they've dynamically created via Likes.
                 if Self.shouldSeedDemoMatches() {
-                    self.rows = firestoreRows + Self.demoMatches()
+                    let showMe = self.currentShowMePreference
+                    self.rows = firestoreRows + Self.demoMatches(filteredBy: showMe)
                 } else {
                     self.rows = firestoreRows
                 }
@@ -82,9 +97,19 @@ final class MatchesViewModel: ObservableObject {
 
     /// Hand-curated demo matches used in the CPSC 491 capstone presentation.
     /// IDs start with `demo_match_` so `ChatDetailView` can detect them and
-    /// serve mock messages without hitting Firestore. Photos are served from
-    /// randomuser.me — guaranteed-female portraits, free, deterministic.
-    static func demoMatches() -> [MatchRow] {
+    /// serve mock messages without hitting Firestore.
+    static func demoMatches(filteredBy showMe: ShowMe? = nil) -> [MatchRow] {
+        let all = allDemoMatches()
+        guard let showMe = showMe else { return all }
+        return all.filter { row in
+            guard let peer = DemoPeerPool.all.first(where: { $0.name == row.otherName }) else {
+                return true
+            }
+            return showMe.matches(peer.gender)
+        }
+    }
+
+    private static func allDemoMatches() -> [MatchRow] {
         let now = Date()
         return [
             MatchRow(
