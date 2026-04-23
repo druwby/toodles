@@ -2,14 +2,17 @@ import SwiftUI
 
 /// The demo peer pool. Mixed-gender so the matchmaking "Show me" filter
 /// actually has meaningful effect. Each peer's gender is used to decide
-/// whether they're shown to the current user. Interests drive icebreaker
-/// selection and the match-scoring algorithm (Subproject B).
-struct DemoPeer {
+/// whether they're shown to the current user. Interests + trustScore +
+/// accountAgeDays feed MatchScorer (Subproject B) so the demo flow visibly
+/// shows a ranked result, not a static round-robin.
+struct DemoPeer: MatchCandidate {
     let name: String
     let subtitle: String
     let photoUrl: String
     let gender: Gender
     let interests: [String]
+    let trustScore: Int
+    let accountAgeDays: Int
 
     func sharedInterests(with userInterests: [String]) -> [String] {
         let userSet = Set(userInterests.map { $0.lowercased() })
@@ -21,26 +24,36 @@ enum DemoPeerPool {
     static let all: [DemoPeer] = [
         // Women
         DemoPeer(name: "Emma Chen",         subtitle: "Junior · Nursing",        photoUrl: "https://randomuser.me/api/portraits/women/44.jpg", gender: .woman,
-                 interests: ["Coffee", "Hiking", "Reading", "Photography"]),
+                 interests: ["Coffee", "Hiking", "Reading", "Photography"],
+                 trustScore: 88, accountAgeDays: 240),
         DemoPeer(name: "Sophia Rodriguez",  subtitle: "Sophomore · Business",    photoUrl: "https://randomuser.me/api/portraits/women/68.jpg", gender: .woman,
-                 interests: ["Travel", "Coffee", "Dance", "Cooking"]),
+                 interests: ["Travel", "Coffee", "Dance", "Cooking"],
+                 trustScore: 76, accountAgeDays: 95),
         DemoPeer(name: "Olivia Kim",        subtitle: "Senior · Art History",    photoUrl: "https://randomuser.me/api/portraits/women/22.jpg", gender: .woman,
-                 interests: ["Art", "Film", "Photography", "Travel"]),
+                 interests: ["Art", "Film", "Photography", "Travel"],
+                 trustScore: 92, accountAgeDays: 380),
         DemoPeer(name: "Mia Patel",         subtitle: "Senior · Biology",        photoUrl: "https://randomuser.me/api/portraits/women/90.jpg", gender: .woman,
-                 interests: ["Running", "Cooking", "Reading", "Music"]),
+                 interests: ["Running", "Cooking", "Reading", "Music"],
+                 trustScore: 81, accountAgeDays: 200),
         DemoPeer(name: "Hannah Foster",     subtitle: "Junior · Communications", photoUrl: "https://randomuser.me/api/portraits/women/65.jpg", gender: .woman,
-                 interests: ["Music", "Film", "Dance", "Travel"]),
+                 interests: ["Music", "Film", "Dance", "Travel"],
+                 trustScore: 70, accountAgeDays: 45),
         DemoPeer(name: "Riley Park",        subtitle: "Senior · Kinesiology",    photoUrl: "https://randomuser.me/api/portraits/women/17.jpg", gender: .woman,
-                 interests: ["Running", "Hiking", "Yoga", "Cooking"]),
+                 interests: ["Running", "Hiking", "Yoga", "Cooking"],
+                 trustScore: 85, accountAgeDays: 310),
         // Men
         DemoPeer(name: "Ethan Ross",        subtitle: "Junior · Physics",        photoUrl: "https://randomuser.me/api/portraits/men/45.jpg",   gender: .man,
-                 interests: ["Gaming", "Film", "Coffee", "Reading"]),
+                 interests: ["Gaming", "Film", "Coffee", "Reading"],
+                 trustScore: 83, accountAgeDays: 170),
         DemoPeer(name: "Lucas Martinez",    subtitle: "Senior · CS",             photoUrl: "https://randomuser.me/api/portraits/men/32.jpg",   gender: .man,
-                 interests: ["Gaming", "Music", "Coffee", "Hiking"]),
+                 interests: ["Gaming", "Music", "Coffee", "Hiking"],
+                 trustScore: 90, accountAgeDays: 420),
         DemoPeer(name: "Noah Williams",     subtitle: "Junior · Economics",      photoUrl: "https://randomuser.me/api/portraits/men/64.jpg",   gender: .man,
-                 interests: ["Travel", "Running", "Cooking", "Photography"]),
+                 interests: ["Travel", "Running", "Cooking", "Photography"],
+                 trustScore: 78, accountAgeDays: 130),
         DemoPeer(name: "Aiden Cho",         subtitle: "Senior · Mechanical Eng", photoUrl: "https://randomuser.me/api/portraits/men/75.jpg",   gender: .man,
-                 interests: ["Gaming", "Film", "Art", "Music"]),
+                 interests: ["Gaming", "Film", "Art", "Music"],
+                 trustScore: 74, accountAgeDays: 60),
     ]
 
     /// Return the subset of peers that match the user's `Show me` preference.
@@ -50,9 +63,31 @@ enum DemoPeerPool {
         return visible.isEmpty ? all : visible
     }
 
-    /// Deterministic round-robin through the visible peers for the given user
-    /// preference. First session is the first peer, which — for a "show me
-    /// women" user — is Emma, matching the pre-seeded Matches tab.
+    /// Rank visible peers by MatchScorer, highest score first. Ties resolve
+    /// deterministically by name so the order is stable across runs.
+    static func ranked(for user: User?) -> [DemoPeer] {
+        let visible = visibleTo(showMe: user?.showMe)
+        guard let user = user else { return visible }
+        return visible
+            .map { (peer: $0, score: MatchScorer.score(current: user, candidate: $0).total) }
+            .sorted { lhs, rhs in
+                if lhs.score != rhs.score { return lhs.score > rhs.score }
+                return lhs.peer.name < rhs.peer.name
+            }
+            .map(\.peer)
+    }
+
+    /// Session-indexed pick from the ranked list. Session 0 gets the best
+    /// match; subsequent sessions walk down the ranked list so each call
+    /// shows a different (but still score-ordered) peer.
+    static func pick(session index: Int, for user: User?) -> DemoPeer {
+        let pool = ranked(for: user)
+        if pool.isEmpty { return all[0] }
+        return pool[index % pool.count]
+    }
+
+    /// Legacy round-robin entry point — kept for any caller that doesn't
+    /// have a User available yet. New code should prefer `pick(session:for:)`.
     static func pick(session index: Int, showMe: ShowMe?) -> DemoPeer {
         let pool = visibleTo(showMe: showMe)
         return pool[index % pool.count]
@@ -261,7 +296,40 @@ struct StartChattingView: View {
             Text("Connecting you with \(peer.name)…")
                 .font(.callout)
                 .foregroundStyle(.white.opacity(0.85))
+
+            // Surface the shared interests so the user can see *why* this
+            // peer was picked — gives the matching algorithm a visible
+            // presence in the demo flow.
+            let shared = peer.sharedInterests(with: userViewModel.currentUser?.interests ?? [])
+            if !shared.isEmpty {
+                sharedInterestStrip(shared)
+            }
         }
+    }
+
+    private func sharedInterestStrip(_ interests: [String]) -> some View {
+        VStack(spacing: 8) {
+            Text("You both like")
+                .font(.caption2.bold())
+                .tracking(1.0)
+                .foregroundStyle(.white.opacity(0.65))
+
+            HStack(spacing: 6) {
+                ForEach(interests.prefix(4), id: \.self) { tag in
+                    Text(tag)
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.18))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
+                }
+            }
+        }
+        .padding(.top, 4)
     }
 
     private var blockedScene: some View {
@@ -325,7 +393,7 @@ struct StartChattingView: View {
         // matchmaking -> call. Regenerate sessionID so the icebreaker picker
         // returns a fresh prompt for the next call.
         sessionIndex += 1
-        peer = DemoPeerPool.pick(session: sessionIndex, showMe: userViewModel.currentUser?.showMe)
+        peer = DemoPeerPool.pick(session: sessionIndex, for: userViewModel.currentUser)
         currentSessionID = UUID().uuidString
     }
 
@@ -335,7 +403,7 @@ struct StartChattingView: View {
         // the view had access to userViewModel).
         if sessionIndex == 0 {
             await MainActor.run {
-                peer = DemoPeerPool.pick(session: 0, showMe: userViewModel.currentUser?.showMe)
+                peer = DemoPeerPool.pick(session: 0, for: userViewModel.currentUser)
             }
         }
 
