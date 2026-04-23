@@ -47,3 +47,22 @@ targets:
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+  # TDV-85 — XCTest target for v1.1 unit tests. Covers the pure-function
+  # services added in Subprojects A, B, D, E (MatchScorer, IcebreakerService,
+  # TrustEvent model, TranscriptService synthetic path). Integration tests
+  # against Firestore require the emulator and are out of scope for v1.1.
+  ToodlesTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ToodlesTests
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: Toodles
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Toodles.app/Toodles"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEMO_MODE"
