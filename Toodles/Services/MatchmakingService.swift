@@ -365,9 +365,21 @@ final class MatchmakingService: ObservableObject {
         }
 
         // Load the partner's queue snapshot for display data; fall back to
-        // the users/{uid} doc if the queue entry is already gone.
+        // the users/{uid} doc if the queue entry is already gone. Split
+        // across two statements because Swift's async inference doesn't
+        // propagate through nested try?-await inside a nil-coalescing
+        // expression — collapsing the fallback into one line compiles as
+        // "async call in non-concurrency context".
         let partnerQueue = try? await db.collection(queueCollection).document(partnerUID).getDocument()
-        let partnerData = partnerQueue?.data() ?? (try? await db.collection("users").document(partnerUID).getDocument().data()) ?? [:]
+        let partnerData: [String: Any]
+        if let queueData = partnerQueue?.data() {
+            partnerData = queueData
+        } else if let userSnap = try? await db.collection("users").document(partnerUID).getDocument(),
+                  let userData = userSnap.data() {
+            partnerData = userData
+        } else {
+            partnerData = [:]
+        }
 
         let name = partnerData["displayName"] as? String
             ?? partnerData["display_name"] as? String
