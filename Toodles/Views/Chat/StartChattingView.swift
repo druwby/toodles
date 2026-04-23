@@ -2,28 +2,45 @@ import SwiftUI
 
 /// The demo peer pool. Mixed-gender so the matchmaking "Show me" filter
 /// actually has meaningful effect. Each peer's gender is used to decide
-/// whether they're shown to the current user.
+/// whether they're shown to the current user. Interests drive icebreaker
+/// selection and the match-scoring algorithm (Subproject B).
 struct DemoPeer {
     let name: String
     let subtitle: String
     let photoUrl: String
     let gender: Gender
+    let interests: [String]
+
+    func sharedInterests(with userInterests: [String]) -> [String] {
+        let userSet = Set(userInterests.map { $0.lowercased() })
+        return interests.filter { userSet.contains($0.lowercased()) }
+    }
 }
 
 enum DemoPeerPool {
     static let all: [DemoPeer] = [
         // Women
-        DemoPeer(name: "Emma Chen",         subtitle: "Junior · Nursing",        photoUrl: "https://randomuser.me/api/portraits/women/44.jpg", gender: .woman),
-        DemoPeer(name: "Sophia Rodriguez",  subtitle: "Sophomore · Business",    photoUrl: "https://randomuser.me/api/portraits/women/68.jpg", gender: .woman),
-        DemoPeer(name: "Olivia Kim",        subtitle: "Senior · Art History",    photoUrl: "https://randomuser.me/api/portraits/women/22.jpg", gender: .woman),
-        DemoPeer(name: "Mia Patel",         subtitle: "Senior · Biology",        photoUrl: "https://randomuser.me/api/portraits/women/90.jpg", gender: .woman),
-        DemoPeer(name: "Hannah Foster",     subtitle: "Junior · Communications", photoUrl: "https://randomuser.me/api/portraits/women/65.jpg", gender: .woman),
-        DemoPeer(name: "Riley Park",        subtitle: "Senior · Kinesiology",    photoUrl: "https://randomuser.me/api/portraits/women/17.jpg", gender: .woman),
+        DemoPeer(name: "Emma Chen",         subtitle: "Junior · Nursing",        photoUrl: "https://randomuser.me/api/portraits/women/44.jpg", gender: .woman,
+                 interests: ["Coffee", "Hiking", "Reading", "Photography"]),
+        DemoPeer(name: "Sophia Rodriguez",  subtitle: "Sophomore · Business",    photoUrl: "https://randomuser.me/api/portraits/women/68.jpg", gender: .woman,
+                 interests: ["Travel", "Coffee", "Dance", "Cooking"]),
+        DemoPeer(name: "Olivia Kim",        subtitle: "Senior · Art History",    photoUrl: "https://randomuser.me/api/portraits/women/22.jpg", gender: .woman,
+                 interests: ["Art", "Film", "Photography", "Travel"]),
+        DemoPeer(name: "Mia Patel",         subtitle: "Senior · Biology",        photoUrl: "https://randomuser.me/api/portraits/women/90.jpg", gender: .woman,
+                 interests: ["Running", "Cooking", "Reading", "Music"]),
+        DemoPeer(name: "Hannah Foster",     subtitle: "Junior · Communications", photoUrl: "https://randomuser.me/api/portraits/women/65.jpg", gender: .woman,
+                 interests: ["Music", "Film", "Dance", "Travel"]),
+        DemoPeer(name: "Riley Park",        subtitle: "Senior · Kinesiology",    photoUrl: "https://randomuser.me/api/portraits/women/17.jpg", gender: .woman,
+                 interests: ["Running", "Hiking", "Yoga", "Cooking"]),
         // Men
-        DemoPeer(name: "Ethan Ross",        subtitle: "Junior · Physics",        photoUrl: "https://randomuser.me/api/portraits/men/45.jpg",   gender: .man),
-        DemoPeer(name: "Lucas Martinez",    subtitle: "Senior · CS",             photoUrl: "https://randomuser.me/api/portraits/men/32.jpg",   gender: .man),
-        DemoPeer(name: "Noah Williams",     subtitle: "Junior · Economics",      photoUrl: "https://randomuser.me/api/portraits/men/64.jpg",   gender: .man),
-        DemoPeer(name: "Aiden Cho",         subtitle: "Senior · Mechanical Eng", photoUrl: "https://randomuser.me/api/portraits/men/75.jpg",   gender: .man),
+        DemoPeer(name: "Ethan Ross",        subtitle: "Junior · Physics",        photoUrl: "https://randomuser.me/api/portraits/men/45.jpg",   gender: .man,
+                 interests: ["Gaming", "Film", "Coffee", "Reading"]),
+        DemoPeer(name: "Lucas Martinez",    subtitle: "Senior · CS",             photoUrl: "https://randomuser.me/api/portraits/men/32.jpg",   gender: .man,
+                 interests: ["Gaming", "Music", "Coffee", "Hiking"]),
+        DemoPeer(name: "Noah Williams",     subtitle: "Junior · Economics",      photoUrl: "https://randomuser.me/api/portraits/men/64.jpg",   gender: .man,
+                 interests: ["Travel", "Running", "Cooking", "Photography"]),
+        DemoPeer(name: "Aiden Cho",         subtitle: "Senior · Mechanical Eng", photoUrl: "https://randomuser.me/api/portraits/men/75.jpg",   gender: .man,
+                 interests: ["Gaming", "Film", "Art", "Music"]),
     ]
 
     /// Return the subset of peers that match the user's `Show me` preference.
@@ -50,6 +67,9 @@ struct StartChattingView: View {
     @State private var showCall = false
     @State private var sessionIndex: Int = 0
     @State private var peer: DemoPeer = DemoPeerPool.all[0]
+    /// Stable identifier for the current call session. Regenerated per session
+    /// so the icebreaker picker returns a fresh prompt each time.
+    @State private var currentSessionID: String = UUID().uuidString
 
     @State private var ring1Scale: CGFloat = 1.0
     @State private var ring2Scale: CGFloat = 1.0
@@ -114,6 +134,8 @@ struct StartChattingView: View {
                 matchName: peer.name,
                 matchSubtitle: peer.subtitle,
                 matchPhotoUrl: peer.photoUrl,
+                sessionID: currentSessionID,
+                sharedInterests: peer.sharedInterests(with: userViewModel.currentUser?.interests ?? []),
                 onEnd: { wantsNext in
                     showCall = false
                     if wantsNext {
@@ -300,9 +322,11 @@ struct StartChattingView: View {
     private func startNextMatch() {
         // Round-robin through the peers that match the user's Show me filter.
         // Incrementing sessionIndex re-triggers .task(id:) -> runFlow() ->
-        // matchmaking -> call.
+        // matchmaking -> call. Regenerate sessionID so the icebreaker picker
+        // returns a fresh prompt for the next call.
         sessionIndex += 1
         peer = DemoPeerPool.pick(session: sessionIndex, showMe: userViewModel.currentUser?.showMe)
+        currentSessionID = UUID().uuidString
     }
 
     private func runFlow() async {
