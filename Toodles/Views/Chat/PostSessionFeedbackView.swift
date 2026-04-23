@@ -24,6 +24,12 @@ struct PostSessionFeedbackView: View {
     @State private var selection: String?
     @State private var showCelebration = false
 
+    // Transcript state (TDV-84 / Subproject E). Lazy-loads on appear so the
+    // feedback buttons render instantly; transcript row fades in when ready.
+    @State private var transcript: Transcript?
+    @State private var isTranscriptExpanded: Bool = false
+    @State private var transcriptError: String?
+
     init(
         matchName: String,
         matchSubtitle: String? = nil,
@@ -102,6 +108,12 @@ struct PostSessionFeedbackView: View {
                     ProgressView().tint(.white)
                 }
 
+                // Transcript section — collapsible, appears only when loaded.
+                if let transcript = transcript {
+                    transcriptSection(transcript)
+                        .padding(.horizontal, 24)
+                }
+
                 Spacer()
 
                 // Explicit "end the session" escape. Without this the loop is
@@ -133,6 +145,7 @@ struct PostSessionFeedbackView: View {
         .disabled(isSaving)
         .onAppear {
             selection = presetStatus
+            loadTranscript()
         }
         .fullScreenCover(isPresented: $showCelebration) {
             MatchCelebrationView(
@@ -214,6 +227,108 @@ struct PostSessionFeedbackView: View {
             } else {
                 onDone(wantsNext)
             }
+        }
+    }
+
+    // MARK: - Transcript
+
+    private func loadTranscript() {
+        guard transcript == nil, let sid = sessionID else { return }
+        // Use the same icebreaker the session would have shown — seeds the
+        // synthetic transcript so it references the actual prompt.
+        let icebreaker = IcebreakerService.pick(sessionID: sid)
+        let userName = AuthManager.shared.currentEmail?
+            .components(separatedBy: "@").first ?? "You"
+        Task {
+            do {
+                let t = try await TranscriptService.transcribe(
+                    sessionID: sid,
+                    peerName: matchName,
+                    userName: userName,
+                    icebreakerText: icebreaker.text,
+                    audioURL: nil
+                )
+                await MainActor.run { transcript = t }
+            } catch {
+                await MainActor.run { transcriptError = error.localizedDescription }
+            }
+        }
+    }
+
+    private func transcriptSection(_ t: Transcript) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isTranscriptExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "text.bubble.fill")
+                        .font(.callout)
+                        .foregroundStyle(.white.opacity(0.75))
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("Transcript")
+                                .font(.callout.bold())
+                                .foregroundStyle(.white)
+                            if t.isSynthetic {
+                                Text("DEMO")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.black)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.yellow.opacity(0.85))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        Text(t.isSynthetic
+                             ? "Preview only — not a live recording."
+                             : "Captured via Whisper.")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    Spacer()
+                    Image(systemName: isTranscriptExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white.opacity(0.65))
+                }
+                .padding(14)
+            }
+            .buttonStyle(.plain)
+
+            if isTranscriptExpanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(t.turns) { turn in
+                        transcriptTurnRow(turn)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 14)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+        )
+    }
+
+    private func transcriptTurnRow(_ turn: TranscriptTurn) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(turn.speaker == .you ? "You" : matchName.components(separatedBy: " ").first ?? matchName)
+                .font(.caption.bold())
+                .foregroundStyle(turn.speaker == .you ? Color(red: 0.96, green: 0.35, blue: 0.55) : Color(red: 0.42, green: 0.72, blue: 1.0))
+                .frame(width: 54, alignment: .leading)
+                .padding(.top, 2)
+            Text(turn.text)
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
         }
     }
 
