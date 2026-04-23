@@ -52,6 +52,26 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project Toodles.xcodeproj \
+            -scheme Toodles
+
+      - name: Resolve a concrete simulator for tests
+        id: simctl
+        run: |
+          # macOS runner images rotate which iPhone models ship by default;
+          # pinning a specific name (e.g. "iPhone 15") breaks whenever the
+          # image upgrades. Instead, boot whichever iPhone the latest runtime
+          # provides. Prefers iPhone 16 Pro if present, falls back to the
+          # first iPhone the runtime lists.
+          LATEST_RUNTIME=$(xcrun simctl list runtimes -j | python3 -c "import json,sys; runtimes=json.load(sys.stdin)['runtimes']; ios=[r for r in runtimes if r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS') and r.get('isAvailable')]; print(sorted(ios, key=lambda r:r['version'])[-1]['identifier'])")
+          echo "runtime=$LATEST_RUNTIME"
+          DEVICE_UDID=$(xcrun simctl list devices -j "$LATEST_RUNTIME" | python3 -c "import json,sys; devs=json.load(sys.stdin)['devices']; pool=next(iter(devs.values())); pref=[d for d in pool if d['name']=='iPhone 16 Pro' and d.get('isAvailable')]; any=[d for d in pool if d['name'].startswith('iPhone') and d.get('isAvailable')]; print((pref or any)[0]['udid'])")
+          echo "udid=$DEVICE_UDID"
+          echo "udid=$DEVICE_UDID" >> "$GITHUB_OUTPUT"
+
       - name: Run unit tests (Subprojects A/B/D/E)
         run: |
           set -o pipefail
@@ -60,15 +80,9 @@ jobs:
             -scheme Toodles \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -destination "platform=iOS Simulator,id=${{ steps.simctl.outputs.udid }}" \
             -derivedDataPath build-tests/ \
             2>&1 | tail -300
-
-      - name: Resolve Swift packages
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -project Toodles.xcodeproj \
-            -scheme Toodles
 
       - name: Build for Simulator
         run: |

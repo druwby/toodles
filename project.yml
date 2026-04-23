@@ -66,3 +66,19 @@ targets:
         BUNDLE_LOADER: "$(TEST_HOST)"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Toodles.app/Toodles"
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEMO_MODE"
+# Explicit scheme so `xcodebuild -scheme Toodles test` runs ToodlesTests.
+# Without this the auto-generated scheme builds the app but doesn't attach
+# the test bundle to the Test action — tests end up compiled but never
+# invoked, which is the silent-failure pattern we want to avoid.
+schemes:
+  Toodles:
+    build:
+      targets:
+        Toodles: all
+        ToodlesTests: [test]
+    test:
+      config: Debug
+      targets:
+        - ToodlesTests
+    run:
+      config: Debug
