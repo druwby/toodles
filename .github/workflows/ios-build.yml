@@ -58,19 +58,40 @@ jobs:
             -project Toodles.xcodeproj \
             -scheme Toodles
 
-      - name: Resolve a concrete simulator for tests
+      - name: Create a simulator for tests
         id: simctl
+        shell: bash
         run: |
-          # macOS runner images rotate which iPhone models ship by default;
-          # pinning a specific name (e.g. "iPhone 15") breaks whenever the
-          # image upgrades. Instead, boot whichever iPhone the latest runtime
-          # provides. Prefers iPhone 16 Pro if present, falls back to the
-          # first iPhone the runtime lists.
-          LATEST_RUNTIME=$(xcrun simctl list runtimes -j | python3 -c "import json,sys; runtimes=json.load(sys.stdin)['runtimes']; ios=[r for r in runtimes if r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS') and r.get('isAvailable')]; print(sorted(ios, key=lambda r:r['version'])[-1]['identifier'])")
-          echo "runtime=$LATEST_RUNTIME"
-          DEVICE_UDID=$(xcrun simctl list devices -j "$LATEST_RUNTIME" | python3 -c "import json,sys; devs=json.load(sys.stdin)['devices']; pool=next(iter(devs.values())); pref=[d for d in pool if d['name']=='iPhone 16 Pro' and d.get('isAvailable')]; any=[d for d in pool if d['name'].startswith('iPhone') and d.get('isAvailable')]; print((pref or any)[0]['udid'])")
-          echo "udid=$DEVICE_UDID"
-          echo "udid=$DEVICE_UDID" >> "$GITHUB_OUTPUT"
+          set -e
+          # Don't enumerate existing simulators — runner image rotations make
+          # device-name filtering fragile. Instead, create a fresh simulator
+          # from a device-type ID + the latest iOS runtime, both of which
+          # are stable IDs across image revisions.
+          RUNTIME=$(xcrun simctl list runtimes available -j | python3 -c "
+          import json, sys
+          r = [x for x in json.load(sys.stdin)['runtimes']
+               if 'SimRuntime.iOS' in x.get('identifier', '')
+               and x.get('isAvailable')]
+          r.sort(key=lambda x: tuple(int(p) for p in x.get('version', '0.0').split('.')))
+          print(r[-1]['identifier'])
+          ")
+          echo "runtime=$RUNTIME"
+
+          DEVICE_TYPE=$(xcrun simctl list devicetypes -j | python3 -c "
+          import json, sys
+          d = [x for x in json.load(sys.stdin)['devicetypes']
+               if 'iPhone' in x.get('name', '')]
+          # Prefer iPhone 16 Pro; if absent, fall back to whichever iPhone
+          # sorts latest alphanumerically (usually the newest model).
+          pref = [x for x in d if x['name'] == 'iPhone 16 Pro']
+          chosen = pref[0] if pref else sorted(d, key=lambda x: x['name'])[-1]
+          print(chosen['identifier'])
+          ")
+          echo "device_type=$DEVICE_TYPE"
+
+          UDID=$(xcrun simctl create "CI-Test-$(date +%s)" "$DEVICE_TYPE" "$RUNTIME")
+          echo "udid=$UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
       - name: Run unit tests (Subprojects A/B/D/E)
         run: |
