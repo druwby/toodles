@@ -97,11 +97,17 @@ enum DemoPeerPool {
 struct StartChattingView: View {
     @Binding var isPresented: Bool
     @EnvironmentObject var userViewModel: UserViewModel
+    @StateObject private var matchmaker = MatchmakingService()
 
     @State private var phase: Phase = .checkingTrust
     @State private var showCall = false
     @State private var sessionIndex: Int = 0
     @State private var peer: DemoPeer = DemoPeerPool.all[0]
+    /// Set when a real Firestore-backed session pairs us with another live
+    /// user. When non-nil, the call view uses this instead of `peer` so the
+    /// remote participant's name/photo/sessionID come from Firestore. When
+    /// nil, we fell back to `peer` from DemoPeerPool.
+    @State private var activeSession: MatchSession?
     /// Stable identifier for the current call session. Regenerated per session
     /// so the icebreaker picker returns a fresh prompt each time.
     @State private var currentSessionID: String = UUID().uuidString
@@ -166,11 +172,11 @@ struct StartChattingView: View {
         }
         .fullScreenCover(isPresented: $showCall) {
             MockVideoCallView(
-                matchName: peer.name,
-                matchSubtitle: peer.subtitle,
-                matchPhotoUrl: peer.photoUrl,
-                sessionID: currentSessionID,
-                sharedInterests: peer.sharedInterests(with: userViewModel.currentUser?.interests ?? []),
+                matchName: callName,
+                matchSubtitle: callSubtitle,
+                matchPhotoUrl: callPhotoUrl,
+                sessionID: callSessionID,
+                sharedInterests: callSharedInterests,
                 onEnd: { wantsNext in
                     showCall = false
                     if wantsNext {
@@ -183,6 +189,12 @@ struct StartChattingView: View {
                     }
                 }
             )
+        }
+        .onDisappear {
+            // If the user taps Cancel or End-session mid-matchmaking, don't
+            // leave our queue entry hanging in Firestore. Fire-and-forget —
+            // the service is @MainActor-isolated so the Task is cheap.
+            Task { await matchmaker.cancelSearch() }
         }
     }
 
@@ -274,6 +286,31 @@ struct StartChattingView: View {
         }
     }
 
+    // MARK: - Display derivation
+    //
+    // The call view needs name / photo / subtitle / sharedInterests / sessionID.
+    // These can come from either a real MatchSession (live Firestore pairing)
+    // or a DemoPeer (single-user fallback). `callName` et al. centralize the
+    // choice so the matchFoundScene and MockVideoCallView stay agnostic.
+
+    private var callName: String {
+        activeSession?.partnerName ?? peer.name
+    }
+    private var callPhotoUrl: String? {
+        activeSession?.partnerPhotoUrl ?? peer.photoUrl
+    }
+    private var callSubtitle: String? {
+        activeSession?.partnerSubtitle ?? peer.subtitle
+    }
+    private var callSessionID: String {
+        activeSession?.sessionID ?? currentSessionID
+    }
+    private var callSharedInterests: [String] {
+        if let s = activeSession { return s.sharedInterests }
+        return peer.sharedInterests(with: userViewModel.currentUser?.interests ?? [])
+    }
+    private var isLiveMatch: Bool { activeSession != nil }
+
     private var matchFoundScene: some View {
         VStack(spacing: 20) {
             ZStack {
@@ -282,27 +319,33 @@ struct StartChattingView: View {
                     .frame(width: 200, height: 200)
                     .scaleEffect(foundPulse)
 
-                PersonAvatar(name: peer.name, photoUrl: peer.photoUrl, size: 170)
+                PersonAvatar(name: callName, photoUrl: callPhotoUrl, size: 170)
                     .overlay(
                         Circle().stroke(Color.white, lineWidth: 4)
                     )
                     .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
             }
 
-            Text("Match found!")
-                .font(.title2.bold())
-                .foregroundStyle(.white)
+            HStack(spacing: 6) {
+                if isLiveMatch {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 8, height: 8)
+                }
+                Text(isLiveMatch ? "Live match found!" : "Match found!")
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+            }
 
-            Text("Connecting you with \(peer.name)…")
+            Text("Connecting you with \(callName)…")
                 .font(.callout)
                 .foregroundStyle(.white.opacity(0.85))
 
             // Surface the shared interests so the user can see *why* this
             // peer was picked — gives the matching algorithm a visible
             // presence in the demo flow.
-            let shared = peer.sharedInterests(with: userViewModel.currentUser?.interests ?? [])
-            if !shared.isEmpty {
-                sharedInterestStrip(shared)
+            if !callSharedInterests.isEmpty {
+                sharedInterestStrip(callSharedInterests)
             }
         }
     }
@@ -388,25 +431,15 @@ struct StartChattingView: View {
     // MARK: - Flow
 
     private func startNextMatch() {
-        // Round-robin through the peers that match the user's Show me filter.
         // Incrementing sessionIndex re-triggers .task(id:) -> runFlow() ->
-        // matchmaking -> call. Regenerate sessionID so the icebreaker picker
-        // returns a fresh prompt for the next call.
+        // matchmaking -> call. Clear any prior live session so the next pass
+        // re-enters the queue cleanly; peer + sessionID are re-derived inside
+        // runFlow() once matchmaker either pairs us or times out.
         sessionIndex += 1
-        peer = DemoPeerPool.pick(session: sessionIndex, for: userViewModel.currentUser)
-        currentSessionID = UUID().uuidString
+        activeSession = nil
     }
 
     private func runFlow() async {
-        // Make sure the peer reflects the user's current "Show me" preference
-        // (important on the very first run — we defaulted to all[0] before
-        // the view had access to userViewModel).
-        if sessionIndex == 0 {
-            await MainActor.run {
-                peer = DemoPeerPool.pick(session: 0, for: userViewModel.currentUser)
-            }
-        }
-
         // Radar animations — start fresh for every session.
         ring1Scale = 1.0; ring2Scale = 1.0; ring3Scale = 1.0
         withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) {
@@ -434,7 +467,21 @@ struct StartChattingView: View {
         await MainActor.run {
             withAnimation { phase = .matchmaking }
         }
-        try? await Task.sleep(nanoseconds: 2_200_000_000)
+
+        // Try a real Firestore-backed live match first. Fall back to the
+        // demo pool if we can't reach Firebase (no profile loaded yet,
+        // GoogleService-Info.plist missing) or if the 15-second scan
+        // returns no compatible peers.
+        let session = await findLiveMatch()
+        await MainActor.run {
+            if let session = session {
+                activeSession = session
+            } else {
+                activeSession = nil
+                peer = DemoPeerPool.pick(session: sessionIndex, for: userViewModel.currentUser)
+                currentSessionID = UUID().uuidString
+            }
+        }
 
         await MainActor.run {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.7)) {
@@ -448,5 +495,36 @@ struct StartChattingView: View {
         try? await Task.sleep(nanoseconds: 1_200_000_000)
 
         await MainActor.run { showCall = true }
+    }
+
+    /// Enter the Firestore queue and await a real pairing. Returns nil on
+    /// timeout, missing auth, or any Firestore error — callers fall back to
+    /// DemoPeerPool in that case so single-user testing still works.
+    private func findLiveMatch() async -> MatchSession? {
+        guard let me = userViewModel.currentUser,
+              me.id != nil,
+              AuthManager.shared.isSignedIn else {
+            // Brief delay so the matchmaking animation doesn't snap to
+            // matchFound instantly — preserves the "finding someone" feel
+            // even in the fallback path.
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            return nil
+        }
+
+        await matchmaker.startSearching(as: me)
+
+        // Poll the service for a terminal state. The service enforces its own
+        // timeout internally (MatchmakingService.scanTimeoutSeconds), so this
+        // loop only exists to surface the result to SwiftUI.
+        let hardCap = Date().addingTimeInterval(MatchmakingService.scanTimeoutSeconds + 3)
+        while matchmaker.isSearching, Date() < hardCap {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+
+        if case .matched(let session) = matchmaker.status {
+            return session
+        }
+        await matchmaker.cancelSearch()
+        return nil
     }
 }
