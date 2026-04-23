@@ -34,8 +34,35 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # GoogleService-Info.plist is gitignored (TDV-85). Inject from an
+      # optional repository secret so CI builds can talk to Firebase.
+      # When the secret isn't set, the app still builds and launches, just
+      # with Firebase disabled — ToodlesApp.init guards on the plist path.
+      - name: Write GoogleService-Info.plist from secret (optional)
+        env:
+          PLIST_B64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_B64 }}
+        run: |
+          if [ -n "$PLIST_B64" ]; then
+            echo "$PLIST_B64" | base64 -d > Toodles/Resources/GoogleService-Info.plist
+            echo "Firebase plist injected from secret."
+          else
+            echo "No GOOGLE_SERVICE_INFO_PLIST_B64 secret configured — Firebase features will be disabled in this build."
+          fi
+
       - name: Generate Xcode project
         run: xcodegen generate
+
+      - name: Run unit tests (Subprojects A/B/D/E)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Toodles.xcodeproj \
+            -scheme Toodles \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -derivedDataPath build-tests/ \
+            2>&1 | tail -300
 
       - name: Resolve Swift packages
         run: |

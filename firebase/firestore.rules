@@ -51,5 +51,74 @@ service cloud.firestore {
                   && resource.data.user_id == request.auth.uid;
       allow update, delete: if false;
     }
+
+    // Matchmaking queue (TDV-82).
+    //
+    // Writers: any signed-in user may write THEIR OWN queue entry — that's
+    //          how they join the queue or update their heartbeat. The queue
+    //          entry's uid MUST match the request uid.
+    // Transaction writes: a peer pairing with us writes to our entry, but
+    //          only to flip our status from "waiting" -> "matched". Allowed
+    //          when the only changed fields are status/sessionID/lastHeartbeat
+    //          and we were in "waiting" when they read us.
+    // Readers: any signed-in user may read the queue — pairing requires
+    //          scanning for compatible candidates.
+    match /matchmaking_queue/{uid} {
+      allow read: if isSignedIn();
+
+      allow create: if isMe(uid)
+                    && request.resource.data.uid == uid
+                    && request.resource.data.status == "waiting";
+
+      allow update: if isSignedIn() && (
+        // Own-entry update: any field, any status transition.
+        isMe(uid)
+        ||
+        // Peer-pair update: only allowed to flip a waiting entry to matched.
+        (resource.data.status == "waiting"
+         && request.resource.data.status == "matched"
+         && 'sessionID' in request.resource.data
+         && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'sessionID', 'lastHeartbeat']))
+      );
+
+      allow delete: if isMe(uid);
+    }
+
+    // Video call sessions (TDV-82). Created atomically in the pairing
+    // transaction by one participant. Both participants can read. No-one
+    // can delete — session history is the audit log.
+    match /sessions/{sessionID} {
+      allow read: if isSignedIn()
+                  && request.auth.uid in resource.data.participants;
+
+      allow create: if isSignedIn()
+                    && request.auth.uid in request.resource.data.participants
+                    && request.resource.data.participants.size() == 2;
+
+      // Participants can update the status field (e.g. pending -> active ->
+      // ended) but cannot rewrite participants or sessionID.
+      allow update: if isSignedIn()
+                    && request.auth.uid in resource.data.participants
+                    && request.resource.data.participants == resource.data.participants
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['status', 'roomURL', 'endedAt']);
+
+      allow delete: if false;
+    }
+
+    // Trust events (TDV-83 / Subproject D). Immutable audit log of reward
+    // and penalty events against a user's trust score. Users can append
+    // events for themselves (e.g. profile completion). Reports/penalties
+    // against another user must be authored by the reporter — the `subject`
+    // field names whose score is affected; the auth uid must be the `actor`.
+    match /trustEvents/{eventID} {
+      allow read: if isSignedIn()
+                  && (request.auth.uid == resource.data.subject
+                      || request.auth.uid == resource.data.actor);
+      allow create: if isSignedIn()
+                    && request.resource.data.actor == request.auth.uid;
+      allow update, delete: if false;
+    }
   }
 }

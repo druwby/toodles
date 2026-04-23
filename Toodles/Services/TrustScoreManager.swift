@@ -2,10 +2,19 @@
 // Toodles
 //
 // TDV-74: Build TrustScoreManager with account verification logic
+// TDV-83: Trust reward + recovery path (Subproject D of v1.1 roadmap)
+//
+// Scoring model:
+//   baseScore(50) + verificationBonus + profileCompletenessBonus +
+//   accountAgeBonus + sum(TrustEvent.delta for all events) - reportPenalty
+//   clamped to [0, 100].
+//
+// Events are recorded in trustEvents/{eventID} as an immutable audit log.
+// Recomputation reads all events for the subject and sums their deltas,
+// which means adding a new event kind later doesn't require a backfill.
 
 import Foundation
 import FirebaseFirestore
-import FirebaseAuth
 
 enum VerificationStatus: String, Codable {
     case unverified = "unverified"
@@ -59,18 +68,23 @@ final class TrustScoreManager: ObservableObject {
         }
 
         let reportCount = data["reportCount"] as? Int ?? 0
-        let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+        // Accept both camelCase and snake_case createdAt — the two code paths
+        // historically wrote different casings. Once the schema is unified
+        // this fallback can be removed.
+        let createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+            ?? (data["created_at"] as? Timestamp)?.dateValue()
+            ?? Date()
         let accountAgeDays = Calendar.current.dateComponents([.day], from: createdAt, to: Date()).day ?? 0
 
-        let hasPhoto = (data["profilePhotoURL"] as? String) != nil
-        let hasBio = (data["bio"] as? String) != nil
-        let hasName = (data["displayName"] as? String) != nil
+        let hasPhoto = (data["profilePhotoURL"] as? String) ?? (data["profile_photo_url"] as? String) != nil
+        let hasBio   = (data["bio"] as? String).map { !$0.isEmpty } ?? false
+        let hasName  = (data["displayName"] as? String) ?? (data["display_name"] as? String) != nil
         let completenessScore = [hasPhoto, hasBio, hasName].filter { $0 }.count
 
         let verificationRaw = data["verificationStatus"] as? String ?? "unverified"
         let verificationStatus = VerificationStatus(rawValue: verificationRaw) ?? .unverified
 
-        var score: Double = 50.0
+        var score: Double = Self.baseScore
 
         switch verificationStatus {
         case .idVerified:    score += 30
@@ -82,6 +96,13 @@ final class TrustScoreManager: ObservableObject {
         score += Double(completenessScore) * (10.0 / 3.0)
         score += min(Double(accountAgeDays) / 18.0, 10.0)
         score -= Double(reportCount) * 5.0
+
+        // Apply accumulated trust events (TDV-83). Each event contributes
+        // its signed delta. This is what makes the score *change* over time
+        // rather than being frozen at signup.
+        let eventDelta = try await accumulatedEventDelta(for: uid)
+        score += Double(eventDelta)
+
         score = max(0, min(100, score))
 
         let trustScore = TrustScore(
@@ -102,8 +123,65 @@ final class TrustScoreManager: ObservableObject {
             "lastUpdated": Timestamp(date: Date())
         ])
 
+        // Mirror the clamped score onto users/{uid}.trust_score so the rest
+        // of the app (MatchScorer, trust gate, matchmaker queue entries)
+        // sees the up-to-date value without talking to TrustScoreManager.
+        try? await db.collection("users").document(uid).updateData([
+            "trust_score": Int(score)
+        ])
+
         currentUserTrustScore = trustScore
         return trustScore
+    }
+
+    // MARK: - Reward + recovery events
+
+    /// Base score before any bonuses or event deltas. Exposed as a static so
+    /// tests can reference it directly.
+    static let baseScore: Double = 50
+
+    /// Record a trust event for `subject`. The current signed-in user is the
+    /// actor unless overridden (e.g. a system-initiated weekly decay could
+    /// pass a synthetic actor). Triggers a recalculation of the subject's
+    /// score so the new delta is reflected immediately.
+    @discardableResult
+    func applyEvent(
+        kind: TrustEventKind,
+        for subject: String,
+        actor: String? = nil,
+        sessionID: String? = nil,
+        note: String? = nil
+    ) async throws -> TrustScore? {
+        let effectiveActor = actor ?? AuthManager.shared.currentUID ?? subject
+        let eventID = UUID().uuidString
+
+        let data: [String: Any] = [
+            "subject": subject,
+            "actor": effectiveActor,
+            "kindRaw": kind.rawValue,
+            "delta": kind.delta,
+            "createdAt": Timestamp(date: Date()),
+            "sessionID": sessionID as Any,
+            "note": note as Any
+        ]
+        try await db.collection("trustEvents").document(eventID).setData(data)
+
+        // Recompute the subject's score. We deliberately re-fetch from users/
+        // + trustEvents/ rather than doing an in-place delta — that's what
+        // lets us add new event kinds without backfilling historical data.
+        return try? await calculateTrustScore(for: subject)
+    }
+
+    /// Sum deltas of all recorded trust events for `uid`. Broken out so
+    /// `calculateTrustScore` stays readable and so tests can target the
+    /// aggregation logic directly.
+    func accumulatedEventDelta(for uid: String) async throws -> Int {
+        let snap = try await db.collection("trustEvents")
+            .whereField("subject", isEqualTo: uid)
+            .getDocuments()
+        return snap.documents.reduce(0) { acc, doc in
+            acc + ((doc.data()["delta"] as? Int) ?? 0)
+        }
     }
 
     func verifyEmail(for uid: String) async throws {

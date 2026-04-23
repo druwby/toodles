@@ -44,19 +44,34 @@ This is the workflow used for the Spring 2026 capstone demo — no local Mac req
 
 ## Firebase setup
 
-A `GoogleService-Info.plist` for the Firebase project must be placed at `Toodles/Resources/GoogleService-Info.plist`. If missing, the app will launch but all Firebase features (auth, Firestore, Storage) will be no-ops — useful for previewing the UI without credentials.
+`GoogleService-Info.plist` is **not tracked in git** (it contains API keys). A template lives at `Toodles/Resources/GoogleService-Info.plist.example` — copy it to `GoogleService-Info.plist` in the same directory and fill in your Firebase project's values. If the plist is missing, the app still launches but all Firebase features (auth, Firestore, Storage) become no-ops — useful for previewing the UI without credentials.
 
-To set up Firebase:
+### First-time setup
 
 1. Go to <https://console.firebase.google.com>
 2. Create a new project (name: `toodles-capstone` or similar)
 3. Add an iOS app with bundle ID `edu.csuf.toodles`
-4. Download `GoogleService-Info.plist` and drop it into `Toodles/Resources/`
+4. Download `GoogleService-Info.plist` and save it to `Toodles/Resources/` (alongside the `.example` template).
 5. In the Firebase Console, enable:
    - **Authentication** → Email/Password sign-in method
    - **Cloud Firestore** in production mode
    - **Storage** bucket (default region)
-6. (Optional) Firestore → Rules → paste contents of `firebase/firestore.rules`
+6. Firestore → Rules → paste contents of `firebase/firestore.rules`.
+
+### GitHub Actions builds
+
+The macOS runner needs the real plist at build time. Don't commit it — instead, store the file contents as a base64-encoded repository secret named `GOOGLE_SERVICE_INFO_PLIST_B64` and decode it in the workflow before `xcodegen generate`:
+
+```yaml
+- name: Write GoogleService-Info.plist from secret
+  run: |
+    echo "${{ secrets.GOOGLE_SERVICE_INFO_PLIST_B64 }}" | base64 -d \
+      > Toodles/Resources/GoogleService-Info.plist
+```
+
+### Security note — key rotation
+
+The previous `GoogleService-Info.plist` was tracked in git through **2026-04-23**. Any API key from that file must be assumed compromised. **Rotate it in the Firebase Console before shipping v1.1** (Project Settings → General → Web API Key → Regenerate, then re-download the plist for each app). The app-side Firebase security rules limit blast radius, but rotation is still required.
 
 ## Demo
 

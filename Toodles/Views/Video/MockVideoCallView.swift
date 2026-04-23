@@ -4,6 +4,19 @@ struct MockVideoCallView: View {
     let matchName: String
     let matchSubtitle: String?
     let matchPhotoUrl: String?
+    /// Stable identifier for this session. Both peers in a real session would
+    /// be handed the same sessionID by the matchmaker so icebreakers match.
+    /// Defaulted to a random UUID for standalone previews.
+    let sessionID: String
+    /// Interests both users share, used to pick an interest-category
+    /// icebreaker on the first prompt. Empty is fine — picker falls back
+    /// to general/campus prompts.
+    let sharedInterests: [String]
+    /// Partner UID when this session was created by the real matchmaker
+    /// (live Firestore pairing). Nil for DemoPeerPool fallback. Passed
+    /// through to PostSessionFeedbackView so trust events can target the
+    /// partner's account on a report.
+    let partnerUID: String?
     /// true -> user wants another match; false -> user is ending the session.
     /// The bool bubbles up via PostSessionFeedbackView.onDone and
     /// MatchCelebrationView.onContinue so StartChattingView can either loop
@@ -18,16 +31,36 @@ struct MockVideoCallView: View {
     @State private var disliked: Bool = false
     @State private var reported: Bool = false
 
+    // Icebreaker state — the prompt is derived from sessionID so both peers
+    // see the same thing. Fades out after 12s; user can refresh up to
+    // IcebreakerService.maxRefreshes times.
+    @State private var icebreakerRefreshCount: Int = 0
+    @State private var icebreakerDismissed: Bool = false
+
     init(
         matchName: String,
         matchSubtitle: String? = nil,
         matchPhotoUrl: String? = nil,
+        sessionID: String = UUID().uuidString,
+        sharedInterests: [String] = [],
+        partnerUID: String? = nil,
         onEnd: @escaping (Bool) -> Void
     ) {
         self.matchName = matchName
         self.matchSubtitle = matchSubtitle
         self.matchPhotoUrl = matchPhotoUrl
+        self.sessionID = sessionID
+        self.sharedInterests = sharedInterests
+        self.partnerUID = partnerUID
         self.onEnd = onEnd
+    }
+
+    private var currentIcebreaker: Icebreaker {
+        IcebreakerService.pick(
+            sessionID: sessionID,
+            sharedInterests: sharedInterests,
+            refreshCount: icebreakerRefreshCount
+        )
     }
 
     // Brand-aligned Like color. Toodles is blue; the heart reads in pink so it's
@@ -87,6 +120,27 @@ struct MockVideoCallView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 56)
+
+                // Icebreaker pill — shown during the first ~12s of the call.
+                // Auto-hides once the conversation is expected to have caught
+                // its own momentum; keeps the call surface clean after.
+                if !icebreakerDismissed {
+                    IcebreakerPill(
+                        prompt: currentIcebreaker,
+                        refreshCount: icebreakerRefreshCount,
+                        canRefresh: icebreakerRefreshCount < IcebreakerService.maxRefreshes,
+                        onRefresh: {
+                            icebreakerRefreshCount += 1
+                        }
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .transition(.asymmetric(
+                        insertion: .opacity,
+                        removal: .opacity.combined(with: .move(edge: .top))
+                    ))
+                    .id(icebreakerRefreshCount) // re-animate on refresh
+                }
 
                 Spacer()
 
@@ -233,6 +287,14 @@ struct MockVideoCallView: View {
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             if remaining > 0 {
                 remaining -= 1
+                // Retire the icebreaker after 12 seconds — the conversation
+                // should have its own momentum by then, and the pill stops
+                // earning its screen real estate.
+                if remaining == 48 && !icebreakerDismissed {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        icebreakerDismissed = true
+                    }
+                }
                 if remaining == 0 { endCall() }
             }
         }
@@ -246,6 +308,8 @@ struct MockVideoCallView: View {
                 matchName: matchName,
                 matchSubtitle: matchSubtitle,
                 matchPhotoUrl: matchPhotoUrl,
+                partnerUID: partnerUID,
+                sessionID: sessionID,
                 presetStatus: preferredStatusFromCallControls,
                 onDone: { wantsNext in onEnd(wantsNext) }
             )
