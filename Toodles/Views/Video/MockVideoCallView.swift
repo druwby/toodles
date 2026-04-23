@@ -12,6 +12,11 @@ struct MockVideoCallView: View {
     /// icebreaker on the first prompt. Empty is fine — picker falls back
     /// to general/campus prompts.
     let sharedInterests: [String]
+    /// Partner UID when this session was created by the real matchmaker
+    /// (live Firestore pairing). Nil for DemoPeerPool fallback. Passed
+    /// through to PostSessionFeedbackView so trust events can target the
+    /// partner's account on a report.
+    let partnerUID: String?
     /// true -> user wants another match; false -> user is ending the session.
     /// The bool bubbles up via PostSessionFeedbackView.onDone and
     /// MatchCelebrationView.onContinue so StartChattingView can either loop
@@ -38,6 +43,7 @@ struct MockVideoCallView: View {
         matchPhotoUrl: String? = nil,
         sessionID: String = UUID().uuidString,
         sharedInterests: [String] = [],
+        partnerUID: String? = nil,
         onEnd: @escaping (Bool) -> Void
     ) {
         self.matchName = matchName
@@ -45,6 +51,7 @@ struct MockVideoCallView: View {
         self.matchPhotoUrl = matchPhotoUrl
         self.sessionID = sessionID
         self.sharedInterests = sharedInterests
+        self.partnerUID = partnerUID
         self.onEnd = onEnd
     }
 
@@ -301,6 +308,8 @@ struct MockVideoCallView: View {
                 matchName: matchName,
                 matchSubtitle: matchSubtitle,
                 matchPhotoUrl: matchPhotoUrl,
+                partnerUID: partnerUID,
+                sessionID: sessionID,
                 presetStatus: preferredStatusFromCallControls,
                 onDone: { wantsNext in onEnd(wantsNext) }
             )

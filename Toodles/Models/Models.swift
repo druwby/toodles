@@ -125,3 +125,67 @@ struct SupportTicket: Identifiable, Codable {
     var status: String    // "submitted" | "in_review" | "resolved"
     var created_at: Date
 }
+
+// MARK: - Trust Event (TDV-83 / Subproject D)
+//
+// Immutable audit record for every delta applied to a user's trust score.
+// The subject's score is recomputed from the full event history rather than
+// mutated in place — that way scoring logic can evolve without back-filling
+// old writes and a single event is never "forgotten" mid-calculation.
+
+enum TrustEventKind: String, Codable, CaseIterable {
+    case positiveSessionCompleted = "positive_session"
+    case neutralSessionCompleted  = "neutral_session"
+    case reportedBySomeone        = "reported_by_someone"
+    case reportedSomeone          = "reported_someone"
+    case profileCompleted         = "profile_completed"
+    case emailVerified            = "email_verified"
+    case addedInterests           = "added_interests"
+    case weeklyDecay              = "weekly_decay"
+
+    /// Points delta applied to the subject's score when this event is recorded.
+    /// Sum of deltas + base score = final score (clamped 0...100).
+    var delta: Int {
+        switch self {
+        case .positiveSessionCompleted: return  2
+        case .neutralSessionCompleted:  return  0
+        case .reportedBySomeone:        return -8
+        case .reportedSomeone:          return  1
+        case .profileCompleted:         return  4
+        case .emailVerified:            return 10
+        case .addedInterests:           return  3
+        case .weeklyDecay:              return -1
+        }
+    }
+
+    /// User-facing label for the recovery and activity UIs.
+    var displayName: String {
+        switch self {
+        case .positiveSessionCompleted: return "Good conversation"
+        case .neutralSessionCompleted:  return "Neutral session"
+        case .reportedBySomeone:        return "Someone reported you"
+        case .reportedSomeone:          return "Flagged bad behavior"
+        case .profileCompleted:         return "Completed profile"
+        case .emailVerified:            return "Verified CSUF email"
+        case .addedInterests:           return "Added interests"
+        case .weeklyDecay:              return "Inactivity"
+        }
+    }
+}
+
+struct TrustEvent: Identifiable, Codable {
+    @DocumentID var id: String?
+    /// UID whose score is affected.
+    var subject: String
+    /// UID who triggered the event. For self-service actions like
+    /// profileCompleted, actor == subject. For reportedBySomeone the actor
+    /// is the reporter.
+    var actor: String
+    var kindRaw: String
+    var delta: Int
+    var createdAt: Date
+    var sessionID: String?
+    var note: String?
+
+    var kind: TrustEventKind? { TrustEventKind(rawValue: kindRaw) }
+}

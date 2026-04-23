@@ -4,6 +4,13 @@ struct PostSessionFeedbackView: View {
     let matchName: String
     let matchSubtitle: String?
     let matchPhotoUrl: String?
+    /// Partner UID when this session came from a real Firestore pairing.
+    /// Nil for demo-pool fallback sessions. Used to direct trust events
+    /// (penalty on report, reward for a valid flag) at the right account.
+    let partnerUID: String?
+    /// Session identifier from the matchmaker. Attached to trust events so
+    /// the audit log can be correlated with the session on later review.
+    let sessionID: String?
     /// Carried from mid-call — pre-highlights the matching button so the user
     /// doesn't have to re-rate after tapping heart/X/flag in the call view.
     let presetStatus: String?
@@ -21,12 +28,16 @@ struct PostSessionFeedbackView: View {
         matchName: String,
         matchSubtitle: String? = nil,
         matchPhotoUrl: String? = nil,
+        partnerUID: String? = nil,
+        sessionID: String? = nil,
         presetStatus: String? = nil,
         onDone: @escaping (Bool) -> Void
     ) {
         self.matchName = matchName
         self.matchSubtitle = matchSubtitle
         self.matchPhotoUrl = matchPhotoUrl
+        self.partnerUID = partnerUID
+        self.sessionID = sessionID
         self.presetStatus = presetStatus
         self.onDone = onDone
     }
@@ -178,8 +189,8 @@ struct PostSessionFeedbackView: View {
         // Best-effort Firestore write — don't block the next-match transition
         // on the network round-trip. Scene 7 stays snappy on Appetize.
         if let uid = AuthManager.shared.currentUID, status != "ended" {
-            let fakeOtherUid = "demo_\(matchName.replacingOccurrences(of: " ", with: "_"))"
-            FirestoreService.shared.createMatch(userA: uid, userB: fakeOtherUid, status: status) { _ in }
+            let otherUid = partnerUID ?? "demo_\(matchName.replacingOccurrences(of: " ", with: "_"))"
+            FirestoreService.shared.createMatch(userA: uid, userB: otherUid, status: status) { _ in }
 
             if status == "reported" {
                 FirestoreService.shared.createSupportTicket(
@@ -189,6 +200,10 @@ struct PostSessionFeedbackView: View {
                     category: "report_user"
                 ) { _ in }
             }
+
+            // Trust events (TDV-83). Fire-and-forget — the event write
+            // is best-effort; the score will reconcile on next fetch.
+            emitTrustEvents(selfUID: uid, status: status)
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
@@ -198,6 +213,57 @@ struct PostSessionFeedbackView: View {
                 showCelebration = true
             } else {
                 onDone(wantsNext)
+            }
+        }
+    }
+
+    /// Emit the trust-score deltas that correspond to this session outcome.
+    /// Runs in a detached Task so it doesn't block the UI transition.
+    /// Events against the partner are only emitted when we have a real
+    /// partner UID (live session), not for demo-pool fallback peers.
+    private func emitTrustEvents(selfUID: String, status: String) {
+        Task {
+            let manager = TrustScoreManager.shared
+            switch status {
+            case "matched":
+                _ = try? await manager.applyEvent(
+                    kind: .positiveSessionCompleted,
+                    for: selfUID,
+                    actor: selfUID,
+                    sessionID: sessionID
+                )
+            case "rejected":
+                // A neutral outcome — event is still recorded so the history
+                // shows the session happened.
+                _ = try? await manager.applyEvent(
+                    kind: .neutralSessionCompleted,
+                    for: selfUID,
+                    actor: selfUID,
+                    sessionID: sessionID
+                )
+            case "reported":
+                // Reporter gets a small credit for flagging bad behavior.
+                _ = try? await manager.applyEvent(
+                    kind: .reportedSomeone,
+                    for: selfUID,
+                    actor: selfUID,
+                    sessionID: sessionID,
+                    note: "reported \(matchName)"
+                )
+                // Reported partner takes a penalty — only if this was a real
+                // paired session (we have their UID). Demo-fallback peers
+                // are synthetic so we skip.
+                if let partnerUID = partnerUID {
+                    _ = try? await manager.applyEvent(
+                        kind: .reportedBySomeone,
+                        for: partnerUID,
+                        actor: selfUID,
+                        sessionID: sessionID,
+                        note: "reported by \(selfUID)"
+                    )
+                }
+            default:
+                break
             }
         }
     }

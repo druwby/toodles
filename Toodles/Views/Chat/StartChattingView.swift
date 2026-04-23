@@ -116,6 +116,7 @@ struct StartChattingView: View {
     @State private var ring2Scale: CGFloat = 1.0
     @State private var ring3Scale: CGFloat = 1.0
     @State private var foundPulse: CGFloat = 1.0
+    @State private var showRecovery: Bool = false
 
     enum Phase { case checkingTrust, matchmaking, matchFound, blocked }
 
@@ -177,6 +178,7 @@ struct StartChattingView: View {
                 matchPhotoUrl: callPhotoUrl,
                 sessionID: callSessionID,
                 sharedInterests: callSharedInterests,
+                partnerUID: activeSession?.partnerUID,
                 onEnd: { wantsNext in
                     showCall = false
                     if wantsNext {
@@ -195,6 +197,18 @@ struct StartChattingView: View {
             // leave our queue entry hanging in Firestore. Fire-and-forget —
             // the service is @MainActor-isolated so the Task is cheap.
             Task { await matchmaker.cancelSearch() }
+        }
+        .fullScreenCover(isPresented: $showRecovery, onDismiss: {
+            // User came back from the recovery flow. If their score now
+            // clears the threshold, re-run the trust check and let them in.
+            if (userViewModel.currentUser?.trustScore ?? 0) >= 50 && phase == .blocked {
+                sessionIndex += 1  // re-trigger .task(id:)
+            }
+        }) {
+            NavigationStack {
+                TrustRecoveryView()
+                    .environmentObject(userViewModel)
+            }
         }
     }
 
@@ -386,28 +400,55 @@ struct StartChattingView: View {
                     .foregroundStyle(.red)
             }
 
-            Text("Account suspended")
+            Text("Paused from matchmaking")
                 .font(.title2.bold())
                 .foregroundStyle(.white)
 
-            Text("Your trust score is too low to chat right now.")
+            Text("Your trust score is too low to start a chat right now. Complete a few quick tasks to get back to matching.")
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(.white.opacity(0.85))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+
+            // Primary action — open the recovery flow. Turns the blocked
+            // state from a dead end into a user-visible path forward.
+            Button {
+                showRecovery = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.up.forward.circle.fill")
+                    Text("Rebuild your score")
+                }
+                .font(.body.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 14)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.98, green: 0.58, blue: 0.12),
+                            Color(red: 0.98, green: 0.42, blue: 0.40)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(Capsule())
+                .shadow(color: Color(red: 0.98, green: 0.45, blue: 0.30).opacity(0.45), radius: 12, y: 6)
+            }
+            .padding(.top, 12)
 
             Button {
                 isPresented = false
             } label: {
-                Text("Go back")
-                    .font(.body.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 12)
-                    .background(ToodlesTheme.accent)
+                Text("Not now")
+                    .font(.callout.bold())
+                    .foregroundStyle(.white.opacity(0.75))
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial)
                     .clipShape(Capsule())
             }
-            .padding(.top, 12)
         }
     }
 
