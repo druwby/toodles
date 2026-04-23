@@ -34,19 +34,44 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      # GoogleService-Info.plist is gitignored (TDV-85). Inject from an
-      # optional repository secret so CI builds can talk to Firebase.
-      # When the secret isn't set, the app still builds and launches, just
-      # with Firebase disabled — ToodlesApp.init guards on the plist path.
-      - name: Write GoogleService-Info.plist from secret (optional)
+      # GoogleService-Info.plist is gitignored (TDV-85). Two injection paths:
+      #  1. Real plist from GOOGLE_SERVICE_INFO_PLIST_B64 secret — used for
+      #     production-like CI runs where Firebase should actually work.
+      #  2. Format-valid fake plist — used when no secret is set, so
+      #     FirebaseApp.configure() succeeds at app launch and Firestore.firestore()
+      #     doesn't crash in constructor-level property initializers like
+      #     FirestoreService.shared. Real network calls against Firestore would
+      #     fail, but the pure-function unit tests don't make any.
+      - name: Write GoogleService-Info.plist
         env:
           PLIST_B64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_B64 }}
         run: |
+          PLIST_PATH=Toodles/Resources/GoogleService-Info.plist
           if [ -n "$PLIST_B64" ]; then
-            echo "$PLIST_B64" | base64 -d > Toodles/Resources/GoogleService-Info.plist
+            echo "$PLIST_B64" | base64 -d > "$PLIST_PATH"
             echo "Firebase plist injected from secret."
           else
-            echo "No GOOGLE_SERVICE_INFO_PLIST_B64 secret configured — Firebase features will be disabled in this build."
+            cat > "$PLIST_PATH" <<'PLIST_EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>API_KEY</key><string>CI_PLACEHOLDER_API_KEY</string>
+              <key>GCM_SENDER_ID</key><string>000000000000</string>
+              <key>PLIST_VERSION</key><string>1</string>
+              <key>BUNDLE_ID</key><string>edu.csuf.toodles</string>
+              <key>PROJECT_ID</key><string>toodles-ci</string>
+              <key>STORAGE_BUCKET</key><string>toodles-ci.appspot.com</string>
+              <key>IS_ADS_ENABLED</key><false/>
+              <key>IS_ANALYTICS_ENABLED</key><false/>
+              <key>IS_APPINVITE_ENABLED</key><true/>
+              <key>IS_GCM_ENABLED</key><true/>
+              <key>IS_SIGNIN_ENABLED</key><true/>
+              <key>GOOGLE_APP_ID</key><string>1:000000000000:ios:0000000000000000000000</string>
+          </dict>
+          </plist>
+          PLIST_EOF
+            echo "No secret set — wrote format-valid placeholder plist so FirebaseApp.configure() succeeds for tests."
           fi
 
       - name: Generate Xcode project
