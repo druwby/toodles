@@ -120,5 +120,21 @@ service cloud.firestore {
                     && request.resource.data.actor == request.auth.uid;
       allow update, delete: if false;
     }
+
+    // Trust score cache (TDV-87). Derived from trustEvents + users/{uid}
+    // structural state by TrustScoreManager.calculateTrustScore. The owner
+    // can write their own cache; everyone signed-in can read (MatchScorer
+    // needs to read peers' scores to rank the queue).
+    //
+    // Server-side enforcement against tampering lives in the queue-write
+    // path: a peer's score in `matchmaking_queue/{uid}.trustScore` is only
+    // trusted if that uid authored the write (the queue rule enforces
+    // isMe on create). A malicious client writing a high trustScore to
+    // trustScores/{uid} still has to route through the queue with their
+    // own uid to be picked as a match.
+    match /trustScores/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isMe(uid);
+    }
   }
 }

@@ -94,6 +94,17 @@ final class MatchmakingService: ObservableObject {
     private var scanTask: Task<Void, Never>?
     private var queueListener: ListenerRegistration?
 
+    // Tear down the Firestore listener and in-flight tasks if SwiftUI drops
+    // the @StateObject mid-search (user backgrounds the app, navigates away
+    // without hitting Cancel). Without this, queueListener stays attached
+    // until Firestore's own timeout and the queue entry stays `waiting`
+    // until the 30-second heartbeat cutoff reaps it on the next scan.
+    deinit {
+        queueListener?.remove()
+        heartbeatTask?.cancel()
+        scanTask?.cancel()
+    }
+
     // MARK: - Public API
 
     /// Enter the queue and start scanning. The caller should observe `status`

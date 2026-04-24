@@ -218,13 +218,34 @@ struct TrustRecoveryView: View {
         defer { isApplying = false }
 
         do {
-            let updated = try await trustManager.applyEvent(
-                kind: task.eventKind,
-                for: uid,
-                actor: uid,
-                sessionID: nil,
-                note: "recovery:\(task.rawValue)"
-            )
+            // Three task kinds, three different actions — structural
+            // changes feed the existing verification / completeness
+            // bonuses in `calculateTrustScore`; the lone event kind
+            // (`addedInterests`) isn't double-counted anywhere so it
+            // still flows as an event.
+            let updated: TrustScore?
+            switch task {
+            case .verifyEmail:
+                // Update structural state — `verifyEmail` writes
+                // users/{uid}.verificationStatus and triggers a recompute
+                // that picks up the +10 structural verification bonus.
+                try await trustManager.verifyEmail(for: uid)
+                updated = trustManager.currentUserTrustScore
+            case .addInterests:
+                updated = try await trustManager.applyEvent(
+                    kind: .addedInterests,
+                    for: uid,
+                    actor: uid,
+                    sessionID: nil,
+                    note: "recovery:\(task.rawValue)"
+                )
+            case .completeProfile:
+                // No event to emit — structural bonus already rewards bio +
+                // photo + display name. The task is really a navigation
+                // prompt; recompute so the user sees the current score
+                // reflect whatever they've already filled in.
+                updated = try? await trustManager.calculateTrustScore(for: uid)
+            }
             completedTasks.insert(task)
             if let new = updated {
                 displayScore = Int(new.score)
@@ -248,14 +269,12 @@ enum RecoveryTask: String, CaseIterable {
     case completeProfile
     case verifyEmail
     case addInterests
-    case emailVerifiedOneTime // alias for initial verification bonus
 
     var title: String {
         switch self {
         case .completeProfile:      return "Complete your profile"
         case .verifyEmail:          return "Verify your CSUF email"
         case .addInterests:         return "Add at least 3 interests"
-        case .emailVerifiedOneTime: return "One-time email verification bonus"
         }
     }
 
@@ -264,18 +283,17 @@ enum RecoveryTask: String, CaseIterable {
         case .completeProfile:      return "Bio + photo + display name all set."
         case .verifyEmail:          return "Confirm via your @csu.fullerton.edu inbox."
         case .addInterests:         return "Interests drive better matches and icebreakers."
-        case .emailVerifiedOneTime: return "Big boost if your CSUF email hasn't been credited yet."
         }
     }
 
-    var reward: Int { eventKind.delta }
-
-    var eventKind: TrustEventKind {
+    /// Visible reward — matches what the user actually gets from either the
+    /// structural bonus (complete profile, verify email) or the event delta
+    /// (addedInterests). Kept in sync manually with `calculateTrustScore`.
+    var reward: Int {
         switch self {
-        case .completeProfile:      return .profileCompleted
-        case .verifyEmail:          return .emailVerified
-        case .addInterests:         return .addedInterests
-        case .emailVerifiedOneTime: return .emailVerified
+        case .completeProfile: return 10  // up to +10 from completeness bonus
+        case .verifyEmail:     return 10  // +10 from verification bonus
+        case .addInterests:    return TrustEventKind.addedInterests.delta
         }
     }
 
@@ -287,7 +305,7 @@ enum RecoveryTask: String, CaseIterable {
         switch self {
         case .completeProfile:
             return !user.bio.isEmpty && user.profilePhotoUrl?.isEmpty == false && !user.displayName.isEmpty
-        case .verifyEmail, .emailVerifiedOneTime:
+        case .verifyEmail:
             return user.email.lowercased().hasSuffix("csu.fullerton.edu")
                 || user.email.lowercased().hasSuffix("fullerton.edu")
         case .addInterests:
