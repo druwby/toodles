@@ -1,9 +1,3 @@
-# Firebase configuration — contains API keys.
-# See Toodles/Resources/GoogleService-Info.plist.example for template.
-# TDV-85: removed from repo in Subproject F; any key from prior history
-# must be assumed compromised and must be rotated in Firebase Console.
-Toodles/Resources/GoogleService-Info.plist
-
 # Xcode
 #
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
