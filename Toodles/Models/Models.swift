@@ -138,21 +138,24 @@ enum TrustEventKind: String, Codable, CaseIterable {
     case neutralSessionCompleted  = "neutral_session"
     case reportedBySomeone        = "reported_by_someone"
     case reportedSomeone          = "reported_someone"
-    case profileCompleted         = "profile_completed"
-    case emailVerified            = "email_verified"
     case addedInterests           = "added_interests"
     case weeklyDecay              = "weekly_decay"
 
+    // `profileCompleted` and `emailVerified` were previously separate events,
+    // but they double-counted with the structural completeness and
+    // verification bonuses in `TrustScoreManager.calculateTrustScore`.
+    // They now flow through structural state only — the recovery view
+    // mutates `verificationStatus` or navigates to profile edit, and the
+    // next score recompute picks the change up via the structural bonuses.
+
     /// Points delta applied to the subject's score when this event is recorded.
-    /// Sum of deltas + base score = final score (clamped 0...100).
+    /// Sum of deltas + base score + structural bonuses = final score (clamped 0...100).
     var delta: Int {
         switch self {
         case .positiveSessionCompleted: return  2
         case .neutralSessionCompleted:  return  0
         case .reportedBySomeone:        return -8
         case .reportedSomeone:          return  1
-        case .profileCompleted:         return  4
-        case .emailVerified:            return 10
         case .addedInterests:           return  3
         case .weeklyDecay:              return -1
         }
@@ -165,8 +168,6 @@ enum TrustEventKind: String, Codable, CaseIterable {
         case .neutralSessionCompleted:  return "Neutral session"
         case .reportedBySomeone:        return "Someone reported you"
         case .reportedSomeone:          return "Flagged bad behavior"
-        case .profileCompleted:         return "Completed profile"
-        case .emailVerified:            return "Verified CSUF email"
         case .addedInterests:           return "Added interests"
         case .weeklyDecay:              return "Inactivity"
         }

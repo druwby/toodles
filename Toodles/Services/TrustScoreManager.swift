@@ -76,9 +76,17 @@ final class TrustScoreManager: ObservableObject {
             ?? Date()
         let accountAgeDays = Calendar.current.dateComponents([.day], from: createdAt, to: Date()).day ?? 0
 
-        let hasPhoto = (data["profilePhotoURL"] as? String) ?? (data["profile_photo_url"] as? String) != nil
+        // `??` binds tighter than `!=` in Swift, so the old
+        //   `(data[...] as? String) ?? (...) != nil`
+        // check returned true whenever the key *existed*, even for "". Signup
+        // writes `"profile_photo_url": ""` for every new account, so every
+        // user was auto-credited for profile completeness at signup. Guard
+        // against empty strings explicitly.
+        let photoStr = (data["profilePhotoURL"] as? String) ?? (data["profile_photo_url"] as? String) ?? ""
+        let nameStr  = (data["displayName"] as? String)     ?? (data["display_name"] as? String)     ?? ""
+        let hasPhoto = !photoStr.isEmpty
         let hasBio   = (data["bio"] as? String).map { !$0.isEmpty } ?? false
-        let hasName  = (data["displayName"] as? String) ?? (data["display_name"] as? String) != nil
+        let hasName  = !nameStr.isEmpty
         let completenessScore = [hasPhoto, hasBio, hasName].filter { $0 }.count
 
         let verificationRaw = data["verificationStatus"] as? String ?? "unverified"
@@ -123,12 +131,13 @@ final class TrustScoreManager: ObservableObject {
             "lastUpdated": Timestamp(date: Date())
         ])
 
-        // Mirror the clamped score onto users/{uid}.trust_score so the rest
-        // of the app (MatchScorer, trust gate, matchmaker queue entries)
-        // sees the up-to-date value without talking to TrustScoreManager.
-        try? await db.collection("users").document(uid).updateData([
-            "trust_score": Int(score)
-        ])
+        // Previous versions mirrored score onto users/{uid}.trust_score, but
+        // the Firestore rule forbids owner updates that touch trust_score
+        // (guard against tampering). The mirror always failed silently under
+        // try?. Callers now read TrustScoreManager directly or through
+        // UserViewModel.refreshTrustScore() which updates the in-memory
+        // copy. Server-side mirroring would need a Cloud Function — future
+        // work.
 
         currentUserTrustScore = trustScore
         return trustScore

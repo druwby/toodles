@@ -156,6 +156,12 @@ final class UserViewModel: ObservableObject {
                     )
                     self.currentUser = user
                     self.cacheProfile(user)
+                    // users/{uid}.trust_score is only ever the signup-time
+                    // value (the Firestore rule forbids owner updates that
+                    // touch it). Recompute from trustEvents + structural
+                    // state so the in-memory score is live before any
+                    // matchmaking / trust-gate read.
+                    self.refreshTrustScore(uid: uid)
                 } else if let cached = self.cachedProfile(uid: uid) {
                     // Firestore read came back empty — fall back to the local
                     // UserDefaults cache of the last-known profile so the user
@@ -164,6 +170,23 @@ final class UserViewModel: ObservableObject {
                 } else {
                     self.currentUser = self.stubUser(uid: uid)
                 }
+            }
+        }
+    }
+
+    /// Recompute the user's trust score from TrustScoreManager and update the
+    /// in-memory `currentUser`. Fire-and-forget — callers don't block on it.
+    /// The Firestore rule forbids writing `users/{uid}.trust_score` from the
+    /// client, so this in-memory refresh is how the app sees any change.
+    func refreshTrustScore(uid: String) {
+        Task { [weak self] in
+            guard let self = self else { return }
+            guard let ts = try? await TrustScoreManager.shared.calculateTrustScore(for: uid) else { return }
+            await MainActor.run {
+                guard var user = self.currentUser else { return }
+                user.trustScore = Int(ts.score)
+                self.currentUser = user
+                self.cacheProfile(user)
             }
         }
     }

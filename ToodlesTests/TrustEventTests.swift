@@ -31,14 +31,11 @@ final class TrustEventTests: XCTestCase {
         )
     }
 
-    func testEmailVerifiedIsStronglyPositive() {
-        // Verifying your CSUF email is the cheapest "big" bump — encourages
-        // users to go through verification. 10 points out of a 100 scale.
-        XCTAssertEqual(TrustEventKind.emailVerified.delta, 10)
-    }
-
-    func testProfileCompletedIsModestPositive() {
-        XCTAssertEqual(TrustEventKind.profileCompleted.delta, 4)
+    func testAddedInterestsIsModestPositive() {
+        // Adding 3+ interests is a behavioral signal with no direct
+        // structural bonus, so it flows as an event rather than via
+        // the verification/completeness bonuses.
+        XCTAssertEqual(TrustEventKind.addedInterests.delta, 3)
     }
 
     func testAllEventsHaveDisplayNames() {
@@ -71,11 +68,8 @@ final class TrustEventTests: XCTestCase {
 
     // MARK: - Recovery task mapping
 
-    func testEachRecoveryTaskMapsToAnEventKind() {
+    func testEachRecoveryTaskHasPositiveReward() {
         for task in RecoveryTask.allCases {
-            // Just reference eventKind to make sure the mapping isn't nil /
-            // doesn't crash.
-            _ = task.eventKind
             XCTAssertGreaterThan(task.reward, 0, "\(task) should grant points")
         }
     }
