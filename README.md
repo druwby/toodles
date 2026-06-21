@@ -4,7 +4,6 @@ Video-dating iOS application built for CSUF CPSC 491, Spring 2026. Spontaneous 6
 
 ## Team
 
-- **Danny Shtansky** 
 - **Drew Butler** 
 - **Vincent Polanco** 
 - **Chaitanya Talluri**
